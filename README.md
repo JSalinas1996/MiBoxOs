@@ -5,6 +5,20 @@ Launcher con estética tipo Apple TV (tvOS) y asistente de voz con Gemini para l
 - **Inicio:** grilla de apps 16:9, fondo que cambia con la app enfocada, nombre grande de la app arriba, reloj y orden automático por uso.
 - **Asistente:** botón "Asistente" en pantalla (o tecla Buscar/Menú si el control la manda). Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, abrir ajustes.
 
+## Vista previa
+
+Render real del código con apps ficticias (sin foco: en la TV la tarjeta enfocada se agranda y muestra el nombre abajo).
+
+![Inicio](docs/preview/home.png)
+![Asistente escuchando](docs/preview/assistantListening.png)
+![Asistente respondiendo](docs/preview/assistantDone.png)
+
+Para regenerarlas (Paparazzi 1.3.x no lee la plataforma 36, por eso se compila contra la 35):
+
+```
+./gradlew recordPaparazziRelease -PcompileSdkOverride=35 -x checkReleaseAarMetadata
+```
+
 ## Requisitos
 
 - Una compu en el mismo WiFi que la Mi Box, con [platform-tools (adb)](https://developer.android.com/tools/releases/platform-tools).

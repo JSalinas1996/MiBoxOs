@@ -72,7 +72,7 @@ fun HomeScreen(
 
             // Zona "top shelf": nombre grande de la app con foco
             Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 56.dp), contentAlignment = Alignment.BottomStart) {
-                Crossfade(focused?.label.orEmpty(), animationSpec = tween(250), label = "hero") { label ->
+                Crossfade((focused ?: apps.firstOrNull())?.label.orEmpty(), animationSpec = tween(250), label = "hero") { label ->
                     BasicText(label, style = Type.hero, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }

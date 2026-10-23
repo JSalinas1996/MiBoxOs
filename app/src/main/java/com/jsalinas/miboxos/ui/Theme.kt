@@ -19,7 +19,7 @@ object Palette {
     val text = Color(0xFFF5F5F7)
     val secondary = Color(0xFFA1A1A6)
     val tileFallback = Color(0xFF2C2C2E)
-    val glass = Color(0xCC1C1C1E)
+    val glass = Color(0xF21C1C1E)
     val orb = listOf(Color(0xFF5E5CE6), Color(0xFFBF5AF2), Color(0xFFFF375F), Color(0xFF0A84FF))
 }
 

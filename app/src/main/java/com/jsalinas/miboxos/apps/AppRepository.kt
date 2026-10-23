@@ -43,7 +43,7 @@ class AppRepository(private val context: Context, private val prefs: Prefs) {
                     label = info.loadLabel(pm).toString(),
                     banner = banner?.asImageBitmap(),
                     icon = icon?.asImageBitmap(),
-                    backdrop = source?.let { Bitmap.createScaledBitmap(it, 24, 14, true).asImageBitmap() },
+                    backdrop = source?.let { Bitmap.createScaledBitmap(it, 6, 4, true).asImageBitmap() },
                 )
             }
         }
