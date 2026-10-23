@@ -89,7 +89,14 @@ else
   echo "   Usando la última versión publicada"
   read -r -p "   API key de Gemini (Enter para cargarla después): " KEY
 fi
-if adb_tv install -r "$APK" 2>&1 | grep -q Success; then verde "App instalada"; else rojo "No se pudo instalar la app"; exit 1; fi
+SALIDA=$(adb_tv install -r "$APK" 2>&1)
+if echo "$SALIDA" | grep -q Success; then verde "App instalada"
+else
+  rojo "No se pudo instalar la app"
+  echo "$SALIDA" | tail -3 | sed 's/^/   /'
+  echo "   Tamaño del APK: $(wc -c < "$APK" | tr -d ' ') bytes"
+  exit 1
+fi
 
 # 4. Permisos y funciones (cada una por separado: si una falla, las demás siguen)
 paso "4. Permisos y funciones…"
