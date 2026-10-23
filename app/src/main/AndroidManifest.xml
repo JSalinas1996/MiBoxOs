@@ -6,6 +6,11 @@
     <!-- Fondos propios en Pictures/MiBoxOs; la Mi Box S es Android 9 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Mantener el micrófono mientras el asistente graba encima de otra app -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- "Seguir viendo": leer lo que publican las apps en la fila Watch Next de Android TV -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -24,6 +29,7 @@
     </queries>
 
     <application
+        android:name=".MiBoxApp"
         android:allowBackup="false"
         android:banner="@drawable/banner"
         android:icon="@drawable/icon"
@@ -48,6 +54,23 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Asistente en cualquier app: botón de voz del control -->
+        <service
+            android:name=".global.GlobalAssistantService"
+            android:exported="true"
+            android:label="MiBoxOs: asistente en cualquier app"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service" />
+        </service>
+
+        <service
+            android:name=".global.MicForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Modo reposo: protector de pantalla del sistema -->
         <service

@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.jsalinas.miboxos.GlobalAssistant
 import com.jsalinas.miboxos.Prefs
 import com.jsalinas.miboxos.apps.AppRepository
 import com.jsalinas.miboxos.apps.TvApp
@@ -29,6 +30,10 @@ class AssistantController(
     private val hue: HueController,
     private val scope: CoroutineScope,
     private val apps: () -> List<TvApp>,
+    /** Qué se está viendo (lo informa el asistente global); ayuda a interpretar "pausá" o "subí". */
+    private val screenContext: () -> String? = { null },
+    /** Avisa cuándo empieza y termina de grabar (el asistente global sostiene el micrófono con un servicio en primer plano). */
+    private val onRecording: (Boolean) -> Unit = {},
 ) {
     var state: AssistantState by mutableStateOf(AssistantState.Idle)
         private set
@@ -69,7 +74,12 @@ class AssistantController(
         state = AssistantState.Listening
         job = scope.launch {
             try {
-                val recording = recorder.record { level = it }
+                onRecording(true)
+                val recording = try {
+                    recorder.record { level = it }
+                } finally {
+                    onRecording(false)
+                }
                 level = 0f
                 if (!recording.heardSpeech) {
                     show(AssistantState.Failed(
@@ -80,7 +90,10 @@ class AssistantController(
                 state = AssistantState.Thinking
                 // Si el bridge no responde, el asistente sigue andando sin luces
                 val hueContext = runCatching { hue.home()?.describe() }.getOrNull()
-                val reply = GeminiClient(key, prefs.geminiModel).interpret(recording.wav, apps(), hueContext)
+                val extra = listOfNotNull(screenContext(), hueContext).joinToString("\n\n").ifBlank { null }
+                val reply = GeminiClient(key, prefs.geminiModel).interpret(
+                    recording.wav, apps(), extra, withHue = hueContext != null, withNavigation = GlobalAssistant.connected,
+                )
                 val errors = Tools.execute(context, repo, hue, reply.calls)
                 val text = (listOf(reply.reply) + errors).filter { it.isNotBlank() }.joinToString("\n")
                 show(AssistantState.Done(reply.transcript, text.ifBlank { "Listo." }))

@@ -223,7 +223,7 @@ class MainActivityTest {
 
     @Test fun asistente_sinApiKeyExplicaQueFalta() {
         launch()
-        activityKey(KeyEvent.KEYCODE_MENU)
+        activityKey(KeyEvent.KEYCODE_SEARCH)
         waitText("Falta la API key", substring = true)
     }
 
@@ -279,7 +279,7 @@ class MainActivityTest {
     @Test fun asistente_atrasLoCierra() {
         launch(Intent(app, MainActivity::class.java).putExtra("gemini_api_key", "k"))
         FakeAudio.speech(speechMs = 60_000, realtime = true)
-        activityKey(KeyEvent.KEYCODE_MENU)
+        activityKey(KeyEvent.KEYCODE_SEARCH)
         waitText("Te escucho…")
         activityKey(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(3_000) { runCatching { compose.onNodeWithText("Te escucho…").assertDoesNotExist() }.isSuccess }
@@ -307,7 +307,7 @@ class MainActivityTest {
                 "apagá el living", "Listo, apagué el living.",
                 "luces" to JSONObject().put("objetivo", "Living").put("encender", false),
             )
-            activityKey(KeyEvent.KEYCODE_MENU)
+            activityKey(KeyEvent.KEYCODE_SEARCH)
             waitText("Listo, apagué el living.")
             assertEquals("/clip/v2/resource/grouped_light/gl-living", bridge.puts().single().path)
             // Gemini recibió las luces disponibles

@@ -88,6 +88,9 @@ class SettingsState(
     val screensaverSeconds: Int,
     val screensaverOnlyMine: Boolean,
     val hasOwnPhotos: Boolean,
+    val globalAssistantOn: Boolean = false,
+    val assistantKeyLabel: String = "Botón de voz",
+    val watchNextAllowed: Boolean = false,
 )
 
 class SettingsActions(
@@ -100,6 +103,9 @@ class SettingsActions(
     val onScreensaverOnlyMine: (Boolean) -> Unit = {},
     val onScreensaverPreview: () -> Unit = {},
     val onScreensaverSystem: () -> Unit = {},
+    val onGlobalAssistant: () -> Unit = {},
+    val onLearnKey: () -> Unit = {},
+    val onWatchNextPermission: () -> Unit = {},
 )
 
 /**
@@ -140,7 +146,7 @@ fun SettingsScreen(visible: Boolean, page: SettingsPage, state: SettingsState, a
                         SettingsPage.WALLPAPER -> WallpaperPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.SCREENSAVER -> ScreensaverPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.HUE -> HuePage(state, actions, firstRow) { illustration = it }
-                        SettingsPage.ASSISTANT -> AssistantPage(state, firstRow) { illustration = it }
+                        SettingsPage.ASSISTANT -> AssistantPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.ABOUT -> AboutPage(state, firstRow) { illustration = it }
                     }
                 }
@@ -179,6 +185,8 @@ private fun RootPage(state: SettingsState, actions: SettingsActions, rows: Map<S
         onFocus = { onIllustration("screensaver") }) { actions.onNavigate(SettingsPage.SCREENSAVER) }
     SettingsRow("Philips Hue", hueValue, chevron = true, focus = rows[SettingsPage.HUE],
         onFocus = { onIllustration("hue") }) { actions.onNavigate(SettingsPage.HUE) }
+    SettingsRow("Seguir viendo", if (state.watchNextAllowed) "Activado" else "Dar permiso", chevron = !state.watchNextAllowed,
+        onFocus = { onIllustration("watchnext") }) { if (!state.watchNextAllowed) actions.onWatchNextPermission() }
     SettingsRow("Asistente", if (state.assistantReady) "Listo" else "Falta API key", chevron = true, focus = rows[SettingsPage.ASSISTANT],
         onFocus = { onIllustration("assistant") }) { actions.onNavigate(SettingsPage.ASSISTANT) }
     SectionGap()
@@ -254,11 +262,18 @@ private fun HuePage(state: SettingsState, actions: SettingsActions, first: Focus
 }
 
 @Composable
-private fun AssistantPage(state: SettingsState, first: FocusRequester, onIllustration: (String) -> Unit) {
+private fun AssistantPage(state: SettingsState, actions: SettingsActions, first: FocusRequester, onIllustration: (String) -> Unit) {
     LaunchedEffect(Unit) { onIllustration("assistant") }
-    SettingsRow("API key de Gemini", if (state.assistantReady) "Cargada" else "Falta", focus = first) {}
+    SettingsRow("En cualquier app", if (state.globalAssistantOn) "Activado" else "Desactivado", chevron = true, focus = first,
+        onClick = actions.onGlobalAssistant)
+    SettingsRow("Botón del asistente", state.assistantKeyLabel, onClick = actions.onLearnKey)
+    SettingsRow("API key de Gemini", if (state.assistantReady) "Cargada" else "Falta") {}
     SettingsRow("Modelo", state.model) {}
-    Footer("Abrí el asistente desde su ícono en el inicio y hablá. Si falta la API key, cargala por ADB (ver README).")
+    Footer(
+        "Activado, el botón de voz del control abre el asistente encima de cualquier app; mantenido apretado abre el " +
+            "Centro de control. Para activarlo: En cualquier app → Accesibilidad → MiBoxOs. Si el botón no responde, " +
+            "elegí \"Botón del asistente\" y apretá el botón de voz para que lo aprenda."
+    )
 }
 
 @Composable
@@ -377,6 +392,7 @@ private fun Illustration(id: String, state: SettingsState) {
                 current == "appearance" -> AppearanceArt()
                 current == "hue" -> BulbArt(on = state.hue is HueStatus.Paired)
                 current == "assistant" -> Orb(active = true, level = 0.25f, size = 210.dp)
+                current == "watchnext" -> WatchNextArt()
                 current == "about" -> AboutArt(state.version)
                 else -> GearArt()
             }
@@ -400,6 +416,25 @@ private fun ScreensaverArt(state: SettingsState) {
             )
         }
         if (images.isEmpty()) GearArt()
+    }
+}
+
+/** Tarjeta con barra de progreso, como las de "Seguir viendo". */
+@Composable
+private fun WatchNextArt() {
+    Box(
+        Modifier.width(300.dp).aspectRatio(16f / 9f).shadow(24.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF3A3A3C), Color(0xFF111113)))),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Canvas(Modifier.size(64.dp).align(Alignment.Center)) {
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(size.width * 0.3f, size.height * 0.2f); lineTo(size.width * 0.8f, size.height * 0.5f); lineTo(size.width * 0.3f, size.height * 0.8f); close()
+            }
+            drawPath(path, Color.White)
+        }
+        Box(Modifier.padding(16.dp).fillMaxWidth().height(5.dp).background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(3.dp)))
+        Box(Modifier.padding(16.dp).fillMaxWidth(0.6f).height(5.dp).background(Color.White, RoundedCornerShape(3.dp)))
     }
 }
 

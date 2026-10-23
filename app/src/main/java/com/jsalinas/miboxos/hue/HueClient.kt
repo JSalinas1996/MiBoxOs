@@ -106,6 +106,11 @@ class HueClient(private val bridge: BridgeInfo, private val appKey: String = "")
         }
     }
 
+    /** Estado prendido/apagado de cada grupo (id de grouped_light → prendido). */
+    suspend fun groupStates(): Map<String, Boolean> = withContext(Dispatchers.IO) {
+        get("grouped_light").associate { it.getString("id") to (it.optJSONObject("on")?.optBoolean("on") ?: false) }
+    }
+
     suspend fun recall(scene: HueScene) = withContext(Dispatchers.IO) {
         request("PUT", "/clip/v2/resource/scene/${scene.id}", JSONObject().put("recall", JSONObject().put("action", "active")))
     }

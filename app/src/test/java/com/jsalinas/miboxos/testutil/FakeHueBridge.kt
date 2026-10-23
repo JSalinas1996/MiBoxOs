@@ -100,6 +100,12 @@ class FakeHueBridge(
             "zone" to """[
                 {"id":"zone-1","metadata":{"name":"Planta baja"},"children":[{"rid":"light-1","rtype":"light"},{"rid":"light-2","rtype":"light"}],"services":[{"rid":"gl-pb","rtype":"grouped_light"}]}
             ]""",
+            "grouped_light" to """[
+                {"id":"gl-living","on":{"on":true}},
+                {"id":"gl-dorm","on":{"on":false}},
+                {"id":"gl-pb","on":{"on":true}},
+                {"id":"gl-all","on":{"on":true}}
+            ]""",
             "bridge_home" to """[{"id":"home-1","children":[],"services":[{"rid":"gl-all","rtype":"grouped_light"}]}]""",
             "light" to """[
                 {"id":"light-1","metadata":{"name":"Lámpara pie"}},

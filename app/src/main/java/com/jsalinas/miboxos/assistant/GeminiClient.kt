@@ -17,7 +17,13 @@ class AssistantReply(val transcript: String, val reply: String, val calls: List<
 /** Manda el audio a Gemini (generateContent) con las acciones disponibles como funciones. */
 class GeminiClient(private val apiKey: String, private val model: String) {
 
-    suspend fun interpret(wav: ByteArray, apps: List<TvApp>, hueContext: String?): AssistantReply = withContext(Dispatchers.IO) {
+    suspend fun interpret(
+        wav: ByteArray,
+        apps: List<TvApp>,
+        hueContext: String?,
+        withHue: Boolean = hueContext != null,
+        withNavigation: Boolean = false,
+    ): AssistantReply = withContext(Dispatchers.IO) {
         val appList = apps.joinToString("\n") { "- ${it.label} (${it.packageName})" }
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(text(SYSTEM_PROMPT))))
@@ -29,7 +35,7 @@ class GeminiClient(private val apiKey: String, private val model: String) {
                         .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))))
                 )
             ))
-            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functions(hueContext != null))))
+            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functions(withHue, withNavigation))))
             .put("toolConfig", JSONObject().put("functionCallingConfig", JSONObject().put("mode", "ANY")))
 
         val conn = URL("${Endpoints.gemini}/v1beta/models/$model:generateContent")
@@ -56,9 +62,10 @@ class GeminiClient(private val apiKey: String, private val model: String) {
         }
     }
 
-    private fun functions(withHue: Boolean): JSONArray {
+    private fun functions(withHue: Boolean, withNavigation: Boolean): JSONArray {
         val all = Tools.declarations()
         if (withHue) Tools.hueDeclarations().let { hue -> for (i in 0 until hue.length()) all.put(hue.get(i)) }
+        if (withNavigation) Tools.navigationDeclarations().let { nav -> for (i in 0 until nav.length()) all.put(nav.get(i)) }
         return all
     }
 
@@ -96,6 +103,7 @@ Reglas:
 - Siempre llamá a ${Tools.SHOW_REPLY} con la transcripción literal y una respuesta muy breve en español rioplatense.
 - Para abrir una app usá el nombre de paquete exacto de la lista de apps instaladas. Si no está instalada, decilo en la respuesta.
 - Para luces usá los nombres exactos de la lista de Hue. "Prendé las luces" sin aclarar = grupo "Todas".
+- Si hay una app en pantalla, "pausá", "seguí", "adelantá" se refieren a lo que se está reproduciendo ahí.
 - Si piden buscar algo en YouTube, usá buscar_en_youtube en vez de solo abrir la app.
 - Si el pedido no se puede hacer con las funciones disponibles, explicalo en una frase sin inventar acciones.
 """.trimIndent()

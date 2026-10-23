@@ -5,6 +5,9 @@ Launcher con estética tipo Apple TV (tvOS) y asistente de voz con Gemini para l
 - **Inicio estilo tvOS:** Top Shelf con el fondo elegido, íconos con el logo de cada app sobre un material desenfocado, brillo y sombra al enfocar, nombre solo bajo el ícono enfocado y orden por uso.
 - **Ajustes (app en la grilla):** pantalla completa como Ajustes de tvOS, con apariencia clara/oscura, fondos (Minimal, Tierra, Luna, Saturno, nebulosa… de NASA, o tus fotos) y vinculación con Philips Hue.
 - **Modo reposo (como los Aerials de Apple TV):** las imágenes pasan con zoom y desplazamiento lento, fundido entre una y otra, hora y nombre de la imagen. Es el protector de pantalla del sistema: arranca solo tras la inactividad, también dentro de otras apps.
+- **Seguir viendo (Top Shelf):** lo que dejaste a medias en las apps que publican la fila "Watch Next" de Android TV, con barra de progreso; OK lo abre en ese capítulo.
+- **Centro de control (como tvOS):** hora, Reposo, Asistente, claro/oscuro, Ajustes, habitaciones de Hue para prender/apagar y escenas. Se abre manteniendo el botón de voz (en cualquier app) o con Menú.
+- **Asistente en cualquier app:** el botón de voz del control (el de Google Assistant) abre el asistente con Gemini encima de lo que estés viendo, sin pausarlo.
 - **Asistente (app en la grilla, estilo Siri):** también con la tecla Buscar/Menú si el control la manda. Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, luces y escenas de Hue, abrir ajustes.
 
 ## Vista previa
@@ -25,7 +28,7 @@ Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 ## Tests
 
-`./gradlew testDebugUnitTest` corre 87 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+`./gradlew testDebugUnitTest` corre 106 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
 
 - **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
 - **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.
@@ -65,6 +68,25 @@ adb push mi-foto.jpg /sdcard/Pictures/MiBoxOs/
 ```
 
 La primera vez que abras Ajustes la app pide permiso para leer archivos.
+
+## Asistente en cualquier app y Centro de control
+
+Usa un servicio de accesibilidad para recibir el botón de voz antes que Google Assistant. Activalo una vez:
+
+- Desde la TV: Ajustes (de MiBoxOs) → Asistente → **En cualquier app** → Accesibilidad → MiBoxOs → activar.
+- O por ADB:
+  ```
+  adb shell settings put secure enabled_accessibility_services com.jsalinas.miboxos/com.jsalinas.miboxos.global.GlobalAssistantService
+  adb shell settings put secure accessibility_enabled 1
+  ```
+
+Uso: **toque corto** del botón de voz = asistente; **mantenido** = Centro de control. Atrás cierra.
+Si el botón de voz no responde, en Ajustes → Asistente → **Botón del asistente** apretalo para que la app lo aprenda.
+El permiso de micrófono se da una vez abriendo el ícono Asistente del inicio.
+
+## Seguir viendo
+
+Necesita el permiso de "listados de TV" (se pide al primer arranque; si lo rechazaste: Ajustes → Seguir viendo, o `adb shell pm grant com.jsalinas.miboxos android.permission.READ_TV_LISTINGS`). Aparecen las apps que publican su fila "Watch Next" en Android TV; si una app no la publica, no hay nada que mostrar de esa app.
 
 ## Modo reposo
 
@@ -109,7 +131,7 @@ JDK 17+ y Android SDK (API 36): `./gradlew assembleRelease`. El APK queda en `ap
 
 ## Limitaciones conocidas
 
-- El asistente solo se puede invocar desde el inicio (no mientras estás dentro de Netflix). Para eso hace falta un servicio de accesibilidad: próximo paso.
+- No probado en la Mi Box: si el botón de voz llega al servicio de accesibilidad (algunos firmwares lo procesan antes), si el micrófono del control funciona al grabar desde el servicio y qué apps publican "Seguir viendo".
 - No navega adentro de las apps (por ejemplo, elegir un capítulo en Netflix).
 - La búsqueda en YouTube usa un intent que no está verificado en la app de YouTube para TV de la Mi Box.
 - La integración con Hue no está probada contra un bridge real todavía.

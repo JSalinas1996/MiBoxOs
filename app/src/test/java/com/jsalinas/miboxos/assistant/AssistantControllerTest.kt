@@ -37,7 +37,7 @@ class AssistantControllerTest {
     @Before fun setUp() {
         FakeApps.installDefaults(context)
         val apps = runBlocking { repo.loadApps() }
-        controller = AssistantController(context, prefs, repo, HueController(prefs, scope), scope) { apps }
+        controller = AssistantController(context, prefs, repo, HueController(prefs, scope), scope, apps = { apps })
     }
 
     @After fun tearDown() = gemini.shutdown()

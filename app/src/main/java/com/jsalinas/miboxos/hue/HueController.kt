@@ -98,6 +98,22 @@ class HueController(private val prefs: Prefs, private val scope: CoroutineScope)
         return cached
     }
 
+    /** Grupos (sin "Todas") con su estado, para el Centro de control. */
+    suspend fun rooms(): List<Pair<HueTarget, Boolean>> {
+        val client = client() ?: return emptyList()
+        val home = home(force = true) ?: return emptyList()
+        val states = client.groupStates()
+        return home.groups.filter { it.name != "Todas" }.map { it to (states[it.groupedLightId] ?: false) }
+    }
+
+    suspend fun setOn(target: HueTarget, on: Boolean) {
+        client()?.set(target, on = on, brightness = null, colorHex = null)
+    }
+
+    suspend fun recall(scene: HueScene) {
+        client()?.recall(scene)
+    }
+
     private companion object {
         const val CACHE_MS = 5 * 60_000L
         const val RETRY_MS = 60_000L

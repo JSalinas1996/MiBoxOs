@@ -15,24 +15,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.lifecycleScope
-import com.jsalinas.miboxos.apps.AppRepository
 import com.jsalinas.miboxos.apps.SystemTiles
 import com.jsalinas.miboxos.apps.TvApp
-import com.jsalinas.miboxos.assistant.AssistantController
 import com.jsalinas.miboxos.assistant.AssistantState
-import com.jsalinas.miboxos.hue.HueController
-import com.jsalinas.miboxos.screensaver.Screensaver
-import com.jsalinas.miboxos.screensaver.screensaverImages
-import com.jsalinas.miboxos.ui.AssistantOverlay
+import com.jsalinas.miboxos.global.AssistantKeys
+import com.jsalinas.miboxos.ui.GlobalLayers
 import com.jsalinas.miboxos.ui.HomeScreen
 import com.jsalinas.miboxos.ui.LocalColors
 import com.jsalinas.miboxos.ui.SettingsActions
@@ -41,17 +36,20 @@ import com.jsalinas.miboxos.ui.SettingsScreen
 import com.jsalinas.miboxos.ui.SettingsState
 import com.jsalinas.miboxos.ui.appColors
 import com.jsalinas.miboxos.wallpaper.Wallpaper
-import com.jsalinas.miboxos.wallpaper.Wallpapers
+import com.jsalinas.miboxos.watchnext.WatchNextItem
+import com.jsalinas.miboxos.watchnext.WatchNextRepository
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private lateinit var prefs: Prefs
-    private lateinit var repo: AppRepository
-    private lateinit var assistant: AssistantController
-    private lateinit var hue: HueController
-    private lateinit var wallpapers: Wallpapers
+    private val app get() = application as MiBoxApp
+    private val prefs get() = app.prefs
+    private val assistant get() = app.assistant
+    private val controlCenter get() = app.controlCenter
+    private val watchNext by lazy { WatchNextRepository(this) }
+
     private var apps by mutableStateOf<List<TvApp>>(emptyList())
-    private var darkMode by mutableStateOf(true)
+    private var continueWatching by mutableStateOf<List<WatchNextItem>>(emptyList())
+    private var watchNextAllowed by mutableStateOf(false)
     private var wallpaper by mutableStateOf(Wallpaper("minimal", "Minimal", null))
     private var wallpaperImage by mutableStateOf<ImageBitmap?>(null)
     private var wallpaperList by mutableStateOf<List<Wallpaper>>(emptyList())
@@ -59,9 +57,9 @@ class MainActivity : ComponentActivity() {
     private var wallpaperFrosted by mutableStateOf<ImageBitmap?>(null)
     private var settingsOpen by mutableStateOf(false)
     private var settingsPage by mutableStateOf(SettingsPage.ROOT)
-    private var screensaverPreview by mutableStateOf(false)
     private var screensaverSeconds by mutableStateOf(20)
     private var screensaverOnlyMine by mutableStateOf(false)
+    private var accessibilityOn by mutableStateOf(false)
     private val systemTiles by lazy { SystemTiles.assistant() to SystemTiles.settings() }
     private val firstTileFocus = FocusRequester()
 
@@ -78,25 +76,29 @@ class MainActivity : ComponentActivity() {
         refreshWallpapers()
     }
 
+    private val tvListingsPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        refreshWatchNext()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefs = Prefs(this)
-        repo = AppRepository(this, prefs)
-        hue = HueController(prefs, lifecycleScope)
-        assistant = AssistantController(this, prefs, repo, hue, lifecycleScope) { apps }
-        wallpapers = Wallpapers(this)
-        darkMode = prefs.darkMode
         screensaverSeconds = prefs.screensaverSeconds
         screensaverOnlyMine = prefs.screensaverOnlyMine
         applyConfigExtras(intent)
         selectWallpaper(prefs.wallpaper)
-        if (hue.isPaired) hue.refreshSummary()
+        if (app.hue.isPaired) app.hue.refreshSummary()
+        // "Seguir viendo" necesita un permiso: se pide una sola vez al primer arranque
+        if (!prefs.askedTvListings && !watchNext.hasPermission()) {
+            prefs.askedTvListings = true
+            tvListingsPermission.launch(WatchNextRepository.PERMISSION)
+        }
 
-        // Es el launcher: "Atrás" nunca sale, solo cierra el asistente
+        // Es el launcher: "Atrás" nunca sale; cierra lo que esté abierto, de arriba hacia abajo
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when {
                     assistant.state != AssistantState.Idle -> assistant.dismiss()
+                    controlCenter.visible -> controlCenter.close()
                     settingsOpen && settingsPage != SettingsPage.ROOT -> settingsPage = SettingsPage.ROOT
                     settingsOpen -> closeSettings()
                 }
@@ -104,12 +106,14 @@ class MainActivity : ComponentActivity() {
         })
 
         setContent {
-            CompositionLocalProvider(LocalColors provides appColors(darkMode, photoWallpaper = wallpaper.source != null)) {
+            CompositionLocalProvider(LocalColors provides appColors(app.darkMode, photoWallpaper = wallpaper.source != null)) {
                 Box(
                     Modifier.fillMaxSize().onPreviewKeyEvent { event ->
-                        // Durante la vista previa del modo reposo, cualquier botón lo cierra (y no hace nada más)
-                        if (!screensaverPreview) return@onPreviewKeyEvent false
-                        if (event.type == KeyEventType.KeyUp) screensaverPreview = false
+                        // Aprender el botón del asistente (si el servicio global no está activo, llega acá)
+                        if (AssistantKeys.learn(prefs, event.nativeKeyEvent)) return@onPreviewKeyEvent true
+                        // Modo reposo: cualquier botón lo cierra (y no hace nada más)
+                        if (!controlCenter.screensaverVisible) return@onPreviewKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) controlCenter.screensaverVisible = false
                         true
                     },
                 ) {
@@ -117,43 +121,50 @@ class MainActivity : ComponentActivity() {
                         apps = homeApps(),
                         wallpaper = wallpaperImage,
                         frosted = wallpaperFrosted,
-                        interactive = !settingsOpen,
+                        interactive = !settingsOpen && !controlCenter.visible,
                         onLaunch = ::launch,
                         firstTileFocus = firstTileFocus,
+                        continueWatching = continueWatching,
+                        onWatchNext = ::openWatchNext,
                     )
                     SettingsScreen(
                         visible = settingsOpen,
                         page = settingsPage,
                         state = SettingsState(
-                            darkMode = darkMode,
+                            darkMode = app.darkMode,
                             wallpapers = wallpaperList,
                             thumbs = wallpaperThumbs,
                             selectedWallpaper = wallpaper.id,
                             userFolder = "Pictures/MiBoxOs",
-                            hue = hue.status,
+                            hue = app.hue.status,
                             assistantReady = prefs.geminiApiKey.isNotBlank(),
                             model = prefs.geminiModel,
                             version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty(),
                             screensaverSeconds = screensaverSeconds,
                             screensaverOnlyMine = screensaverOnlyMine,
                             hasOwnPhotos = wallpaperList.any { it.source is Wallpaper.UserFile },
+                            globalAssistantOn = GlobalAssistant.connected || accessibilityOn,
+                            assistantKeyLabel = if (AssistantKeys.learning) "Presioná el botón…" else AssistantKeys.label(prefs),
+                            watchNextAllowed = watchNextAllowed,
                         ),
                         actions = SettingsActions(
                             onNavigate = { settingsPage = it },
-                            onDarkMode = { darkMode = it; prefs.darkMode = it },
+                            onDarkMode = { app.darkMode = it; prefs.darkMode = it },
                             onWallpaper = ::selectWallpaper,
-                            onHuePair = hue::pair,
+                            onHuePair = app.hue::pair,
                             onSystemSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
                             onScreensaverSeconds = { screensaverSeconds = it; prefs.screensaverSeconds = it },
                             onScreensaverOnlyMine = { screensaverOnlyMine = it; prefs.screensaverOnlyMine = it },
-                            onScreensaverPreview = { screensaverPreview = true },
+                            onScreensaverPreview = { controlCenter.screensaverVisible = true },
                             onScreensaverSystem = ::openDreamSettings,
+                            onGlobalAssistant = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
+                            onLearnKey = { AssistantKeys.learning = true },
+                            onWatchNextPermission = { tvListingsPermission.launch(WatchNextRepository.PERMISSION) },
                         ),
                     )
-                    AssistantOverlay(assistant.state, assistant.level)
-                    if (screensaverPreview) {
-                        val images = remember { screensaverImages(wallpapers, prefs) }
-                        Screensaver(images, wallpapers::loadFull, screensaverSeconds)
+                    // Con el asistente global activo, estas capas las dibuja el servicio (encima de cualquier app)
+                    if (!GlobalAssistant.connected) {
+                        GlobalLayers(app, onAssistant = ::onAssistantKey, onSettings = ::openSettings)
                     }
                 }
             }
@@ -162,26 +173,41 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Recarga en cada vuelta al inicio: refleja apps instaladas/desinstaladas y el orden por uso
-        lifecycleScope.launch { runCatching { repo.loadApps() }.onSuccess { apps = it } }
+        accessibilityOn = isGlobalAssistantEnabled()
+        // Recarga en cada vuelta al inicio: refleja apps instaladas/desinstaladas, el orden por uso y "Seguir viendo"
+        lifecycleScope.launch {
+            runCatching { app.repo.loadApps() }.onSuccess {
+                apps = it
+                app.apps = it
+            }
+        }
+        refreshWatchNext()
     }
 
     // Público para poder simular el botón Home en tests
     public override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         applyConfigExtras(intent)
-        // Botón Home estando ya en el inicio: volver a la primera app
+        // Botón Home estando ya en el inicio: cerrar todo y volver a la primera app
         if (intent.hasCategory(Intent.CATEGORY_HOME)) {
             assistant.dismiss()
-            screensaverPreview = false
+            controlCenter.screensaverVisible = false
+            controlCenter.close()
             closeSettings()
             runCatching { firstTileFocus.requestFocus() }
         }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode in ASSISTANT_KEYS) {
+        if (AssistantKeys.isAssistantKey(prefs, keyCode)) {
             if (event.repeatCount == 0) onAssistantKey()
+            return true
+        }
+        // Menú abre/cierra el Centro de control (con el servicio global también: manteniendo el botón de voz)
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            if (event.repeatCount == 0) {
+                if (controlCenter.visible) controlCenter.close() else controlCenter.open()
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
@@ -200,8 +226,21 @@ class MainActivity : ComponentActivity() {
         when (app.packageName) {
             SystemTiles.ASSISTANT -> onAssistantKey()
             SystemTiles.SETTINGS -> openSettings()
-            else -> repo.launch(app.packageName)
+            else -> this.app.repo.launch(app.packageName)
         }
+    }
+
+    /** Abre el contenido exacto (capítulo, minuto) con el intent que publicó la app; si no, la app. */
+    private fun openWatchNext(item: WatchNextItem) {
+        val opened = item.intent?.let {
+            runCatching { startActivity(Intent(it).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
+        } ?: false
+        if (!opened) app.repo.launch(item.packageName)
+    }
+
+    private fun refreshWatchNext() {
+        watchNextAllowed = watchNext.hasPermission()
+        lifecycleScope.launch { continueWatching = watchNext.load() }
     }
 
     private fun openSettings() {
@@ -218,18 +257,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshWallpapers() {
-        val list = wallpapers.all()
+        val list = app.wallpapers.all()
         wallpaperList = list
         lifecycleScope.launch {
             for (wp in list) {
                 if (wp.id in wallpaperThumbs) continue
-                wallpapers.loadThumb(wp)?.let { wallpaperThumbs = wallpaperThumbs + (wp.id to it) }
+                app.wallpapers.loadThumb(wp)?.let { wallpaperThumbs = wallpaperThumbs + (wp.id to it) }
             }
         }
     }
 
     private fun closeSettings() {
         settingsOpen = false
+        AssistantKeys.learning = false
     }
 
     /** Pantalla de Protector de pantalla de Android; si este Android TV no la expone, Ajustes generales. */
@@ -239,12 +279,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun selectWallpaper(id: String) {
-        val selected = wallpapers.byId(id)
+        val selected = app.wallpapers.byId(id)
         wallpaper = selected
         prefs.wallpaper = selected.id
         lifecycleScope.launch {
-            wallpaperImage = wallpapers.loadFull(selected)
-            wallpaperFrosted = wallpapers.loadFrosted(selected)
+            wallpaperImage = app.wallpapers.loadFull(selected)
+            wallpaperFrosted = app.wallpapers.loadFrosted(selected)
         }
     }
 
@@ -256,20 +296,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun isGlobalAssistantEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+        return enabled.contains("$packageName/") && enabled.contains("GlobalAssistantService")
+    }
+
     /** Configuración por ADB: am start -n com.jsalinas.miboxos/.MainActivity --es gemini_api_key ... */
     private fun applyConfigExtras(intent: Intent?) {
         intent?.getStringExtra(Prefs.KEY_API)?.let { prefs.geminiApiKey = it }
         intent?.getStringExtra(Prefs.KEY_MODEL)?.let { prefs.geminiModel = it }
+        if (intent?.getBooleanExtra(EXTRA_OPEN_SETTINGS, false) == true) {
+            intent.removeExtra(EXTRA_OPEN_SETTINGS)
+            openSettings()
+        }
     }
 
-    private companion object {
-        // Atajos si el control los manda; el botón de Google Assistant suele interceptarlo el sistema,
-        // por eso el asistente también es un ícono en el inicio.
-        val ASSISTANT_KEYS = setOf(
-            KeyEvent.KEYCODE_SEARCH,
-            KeyEvent.KEYCODE_VOICE_ASSIST,
-            KeyEvent.KEYCODE_ASSIST,
-            KeyEvent.KEYCODE_MENU,
-        )
+    companion object {
+        /** Lo usa el Centro de control (desde cualquier app) para abrir Ajustes del launcher. */
+        const val EXTRA_OPEN_SETTINGS = "open_settings"
     }
 }

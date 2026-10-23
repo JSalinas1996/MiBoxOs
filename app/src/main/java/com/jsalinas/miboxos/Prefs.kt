@@ -50,6 +50,15 @@ class Prefs(context: Context) {
         get() = config.getBoolean(KEY_SAVER_MINE, false)
         set(value) = config.edit().putBoolean(KEY_SAVER_MINE, value).apply()
 
+    /** Botón del control que abre el asistente; 0 = los códigos de voz por defecto. */
+    var assistantKeyCode: Int
+        get() = config.getInt(KEY_ASSISTANT_KEY, 0)
+        set(value) = config.edit().putInt(KEY_ASSISTANT_KEY, value).apply()
+
+    var askedTvListings: Boolean
+        get() = config.getBoolean(KEY_ASKED_LISTINGS, false)
+        set(value) = config.edit().putBoolean(KEY_ASKED_LISTINGS, value).apply()
+
     var askedStoragePermission: Boolean
         get() = config.getBoolean(KEY_ASKED_STORAGE, false)
         set(value) = config.edit().putBoolean(KEY_ASKED_STORAGE, value).apply()
@@ -65,6 +74,8 @@ class Prefs(context: Context) {
         const val KEY_MODEL = "gemini_model"
         private const val KEY_SAVER_SECONDS = "screensaver_seconds"
         private const val KEY_SAVER_MINE = "screensaver_only_mine"
+        private const val KEY_ASSISTANT_KEY = "assistant_key_code"
+        private const val KEY_ASKED_LISTINGS = "asked_tv_listings"
         private const val KEY_ASKED_STORAGE = "asked_storage"
         private const val KEY_DARK = "dark_mode"
         private const val KEY_WALLPAPER = "wallpaper"

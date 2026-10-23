@@ -1,6 +1,8 @@
 package com.jsalinas.miboxos.assistant
 
+import android.accessibilityservice.AccessibilityService
 import android.app.SearchManager
+import com.jsalinas.miboxos.GlobalAssistant
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -45,6 +47,11 @@ object Tools {
             "escena" to str("Nombre exacto de la escena, de la lista de Hue."),
             "grupo" to str("Habitación o zona de la escena, si hay varias con el mismo nombre.")))
 
+    /** Solo con el asistente global activo: acciones del sistema sobre cualquier app. */
+    fun navigationDeclarations(): JSONArray = JSONArray()
+        .put(fn("ir_al_inicio", "Vuelve a la pantalla de inicio."))
+        .put(fn("atras", "Equivale a apretar Atrás en el control."))
+
     /** Ejecuta las llamadas; devuelve los errores para mostrarlos. */
     suspend fun execute(context: Context, repo: AppRepository, hue: HueController, calls: List<ToolCall>): List<String> {
         val errors = mutableListOf<String>()
@@ -60,6 +67,8 @@ object Tools {
                     "volumen" -> volume(context, call.args.optString("accion"), call.args.optInt("pasos", 2))
                     "abrir_ajustes" -> context.startActivity(
                         Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    "ir_al_inicio" -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME)?.let { errors += it }
+                    "atras" -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK)?.let { errors += it }
                     "luces" -> lights(hue, call.args)?.let { errors += it }
                     "escena_hue" -> scene(hue, call.args)?.let { errors += it }
                     else -> errors += "Acción desconocida: ${call.name}"
@@ -67,6 +76,11 @@ object Tools {
             }.onFailure { errors += it.message ?: "Falló ${call.name}" }
         }
         return errors
+    }
+
+    private fun globalAction(action: Int): String? {
+        val perform = GlobalAssistant.globalAction ?: return "El asistente en cualquier app no está activado"
+        return if (perform(action)) null else "No se pudo hacer esa acción"
     }
 
     private suspend fun lights(hue: HueController, args: JSONObject): String? {

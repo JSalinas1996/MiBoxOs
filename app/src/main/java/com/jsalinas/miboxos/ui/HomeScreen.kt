@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -61,6 +64,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import com.jsalinas.miboxos.apps.TvApp
+import com.jsalinas.miboxos.watchnext.WatchNextItem
 
 // Medidas pensadas para 960×540 dp (1080p), con proporciones como el inicio de tvOS
 private val TOP_SHELF = 292.dp
@@ -82,11 +86,17 @@ fun HomeScreen(
     interactive: Boolean,
     onLaunch: (TvApp) -> Unit,
     firstTileFocus: FocusRequester,
+    continueWatching: List<WatchNextItem> = emptyList(),
+    onWatchNext: (WatchNextItem) -> Unit = {},
 ) {
     var focusedIndex by remember { mutableIntStateOf(0) }
     var gridHasFocus by remember { mutableStateOf(false) }
+    var shelfHasFocus by remember { mutableStateOf(false) }
     val row = focusedIndex / COLUMNS
-    val scrolled = row > 0
+    val scrolled = row > 0 && !shelfHasFocus
+    // Como en tvOS, el Top Shelf muestra lo de la app enfocada; si esa app no publicó nada, todo
+    val focusedPackage = apps.getOrNull(focusedIndex)?.packageName
+    val shelfItems = continueWatching.filter { it.packageName == focusedPackage }.ifEmpty { continueWatching }
 
     val offset by animateDpAsState(
         if (!scrolled) 0.dp else -(TOP_SHELF - 64.dp) - ROW_PITCH * (row - 1),
@@ -106,14 +116,24 @@ fun HomeScreen(
                 .onFocusChanged { gridHasFocus = it.hasFocus },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(TOP_SHELF))
+            Box(Modifier.fillMaxWidth().height(TOP_SHELF), contentAlignment = Alignment.BottomStart) {
+                if (shelfItems.isNotEmpty()) {
+                    ContinueWatching(
+                        items = shelfItems,
+                        photoBackground = wallpaper != null,
+                        interactive = interactive,
+                        onOpen = onWatchNext,
+                        modifier = Modifier.onFocusChanged { shelfHasFocus = it.hasFocus },
+                    )
+                }
+            }
             apps.chunked(COLUMNS).forEachIndexed { r, rowApps ->
                 Row(Modifier.height(ROW_PITCH).width(ICON_W * COLUMNS + COL_GAP * (COLUMNS - 1)), horizontalArrangement = Arrangement.spacedBy(COL_GAP)) {
                     rowApps.forEachIndexed { c, app ->
                         val index = r * COLUMNS + c
                         AppIcon(
                             app = app,
-                            isFocused = gridHasFocus && focusedIndex == index,
+                            isFocused = gridHasFocus && !shelfHasFocus && focusedIndex == index,
                             onFocus = { focusedIndex = index },
                             onClick = { onLaunch(app) },
                             modifier = Modifier
@@ -134,6 +154,69 @@ fun HomeScreen(
             if (gridHasFocus) return@LaunchedEffect
             runCatching { firstTileFocus.requestFocus() }
             withFrameNanos { }
+        }
+    }
+}
+
+/** "Seguir viendo" en el Top Shelf: lo que dejaste a medias, con su progreso; OK lo abre ahí mismo. */
+@Composable
+private fun ContinueWatching(
+    items: List<WatchNextItem>,
+    photoBackground: Boolean,
+    interactive: Boolean,
+    onOpen: (WatchNextItem) -> Unit,
+    modifier: Modifier,
+) {
+    val labelColor = if (photoBackground) Color.White else LocalColors.current.onWallpaper
+    Column(modifier.padding(bottom = 14.dp)) {
+        BasicText(
+            "Seguir viendo",
+            style = Type.section.copy(color = labelColor.copy(alpha = 0.85f)),
+            modifier = Modifier.padding(start = 53.dp, bottom = 10.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 53.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(22.dp),
+        ) {
+            items(items, key = { it.id }) { item ->
+                WatchNextCard(item, labelColor, Modifier.focusProperties { canFocus = interactive }) { onOpen(item) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WatchNextCard(item: WatchNextItem, labelColor: Color, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val labelAlpha by animateFloatAsState(if (focused) 1f else 0f, tween(180), label = "wnLabel")
+    Column(Modifier.width(196.dp)) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier.size(196.dp, 110.dp).onFocusChanged { focused = it.isFocused },
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+            colors = ClickableSurfaceDefaults.colors(containerColor = Color(0xFF1C1C1E), focusedContainerColor = Color(0xFF1C1C1E)),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+            glow = ClickableSurfaceDefaults.glow(focusedGlow = Glow(Color.Black.copy(alpha = 0.6f), 18.dp)),
+        ) {
+            if (item.image != null) {
+                Image(item.image, item.title, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High)
+            } else {
+                Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.BottomStart) {
+                    BasicText(item.title, style = Type.body.copy(color = Color.White), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            item.progress?.let { p ->
+                Box(Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp), contentAlignment = Alignment.BottomStart) {
+                    Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(2.dp)))
+                    Box(Modifier.fillMaxWidth(p).height(4.dp).background(Color.White, RoundedCornerShape(2.dp)))
+                }
+            }
+        }
+        Column(Modifier.padding(top = 12.dp).alpha(labelAlpha)) {
+            BasicText(item.title, style = Type.tileLabel.copy(color = labelColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (item.subtitle.isNotBlank()) {
+                BasicText(item.subtitle, style = Type.caption.copy(color = labelColor.copy(alpha = 0.7f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
