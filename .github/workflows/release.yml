@@ -50,9 +50,14 @@ jobs:
             echo "::error::Falta el secret MIBOX_KEYSTORE_BASE64 (ver README → Actualizaciones y firma)"; exit 1
           fi
           # Tolera saltos de línea o espacios que se cuelan al pegar el secret
-          if ! printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/miboxos.jks" 2>/dev/null; then
+          CLEAN=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t')
+          if ! printf '%s' "$CLEAN" | base64 -d > "$RUNNER_TEMP/miboxos.jks" 2>/dev/null; then
+            # Diagnóstico sin revelar la clave: largo, comienzo (siempre "MIIQ" en estas claves) y caracteres ajenos a base64
+            BAD=$(printf '%s' "$CLEAN" | tr -d 'A-Za-z0-9+/=' | wc -c)
+            echo "Largo: ${#CLEAN} (esperado ~5732) | empieza con: ${CLEAN:0:4} (esperado MIIQ) | caracteres no base64: $BAD"
             echo "::error::MIBOX_KEYSTORE_BASE64 no es base64 válido: pegá el contenido completo de miboxos-release.jks.base64"; exit 1
           fi
+          echo "Clave: ${#CLEAN} caracteres, contraseña: ${#KEYSTORE_PASSWORD} caracteres (esperado 28)"
           if ! keytool -list -keystore "$RUNNER_TEMP/miboxos.jks" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
             echo "::error::La clave no abre con MIBOX_KEYSTORE_PASSWORD: revisá que sea el contenido de password.txt (sin espacios)"; exit 1
           fi
