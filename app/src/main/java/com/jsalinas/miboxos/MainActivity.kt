@@ -52,7 +52,11 @@ class MainActivity : ComponentActivity() {
     private val firstTileFocus = FocusRequester()
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) assistant.toggle()
+        if (granted) {
+            assistant.toggle()
+        } else {
+            assistant.fail("Sin permiso de micrófono. Habilitalo en Ajustes de Android TV → Apps → MiBoxOs → Permisos.")
+        }
     }
 
     // Para leer fondos propios de Pictures/MiBoxOs (Android 9 pide este permiso)
@@ -122,10 +126,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         // Recarga en cada vuelta al inicio: refleja apps instaladas/desinstaladas y el orden por uso
-        lifecycleScope.launch { apps = repo.loadApps() }
+        lifecycleScope.launch { runCatching { repo.loadApps() }.onSuccess { apps = it } }
     }
 
-    override fun onNewIntent(intent: Intent) {
+    // Público para poder simular el botón Home en tests
+    public override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         applyConfigExtras(intent)
         // Botón Home estando ya en el inicio: volver a la primera app
@@ -147,7 +152,11 @@ class MainActivity : ComponentActivity() {
     private fun openSettings() {
         refreshWallpapers()
         settingsOpen = true
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+        // Se pide una sola vez: si lo rechazan, los fondos incluidos siguen andando
+        if (!prefs.askedStoragePermission &&
+            checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            prefs.askedStoragePermission = true
             storagePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
@@ -165,7 +174,6 @@ class MainActivity : ComponentActivity() {
 
     private fun closeSettings() {
         settingsOpen = false
-        runCatching { firstTileFocus.requestFocus() }
     }
 
     private fun selectWallpaper(id: String) {

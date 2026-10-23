@@ -86,7 +86,7 @@ class VoiceRecorder {
         Recording(toWav(pcm.toByteArray()), heardSpeech, peak)
     }
 
-    private fun toWav(pcm: ByteArray): ByteArray {
+    internal fun toWav(pcm: ByteArray): ByteArray {
         val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("RIFF".toByteArray()); putInt(36 + pcm.size); put("WAVE".toByteArray())
             put("fmt ".toByteArray()); putInt(16); putShort(1); putShort(1)

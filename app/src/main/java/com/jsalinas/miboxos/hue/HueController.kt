@@ -27,11 +27,12 @@ class HueController(private val prefs: Prefs, private val scope: CoroutineScope)
     private var pairing: Job? = null
     private var cached: HueHome? = null
     private var cachedAt = 0L
+    private var failedAt = 0L
 
     val isPaired get() = prefs.hueAppKey.isNotEmpty()
 
     fun client(): HueClient? =
-        if (isPaired) HueClient(BridgeInfo(prefs.hueBridgeIp, prefs.hueBridgeId), prefs.hueAppKey) else null
+        if (isPaired) HueClient(BridgeInfo(prefs.hueBridgeIp, prefs.hueBridgeId, prefs.hueBridgePort), prefs.hueAppKey) else null
 
     /** Busca el bridge y espera hasta 30 s a que se apriete su botón. */
     fun pair() {
@@ -53,6 +54,7 @@ class HueController(private val prefs: Prefs, private val scope: CoroutineScope)
                 if (key != null) {
                     prefs.hueBridgeIp = bridge.ip
                     prefs.hueBridgeId = bridge.id
+                    prefs.hueBridgePort = bridge.port
                     prefs.hueAppKey = key
                     refreshSummary()
                     return@launch
@@ -75,17 +77,29 @@ class HueController(private val prefs: Prefs, private val scope: CoroutineScope)
         }
     }
 
+    /**
+     * Habitaciones/luces/escenas (caché de 5 min). Si el bridge no respondió hace menos de un minuto,
+     * devuelve null sin reintentar, para no demorar cada pedido al asistente con un timeout.
+     */
     suspend fun home(force: Boolean = false): HueHome? {
         val client = client() ?: return null
         val now = System.currentTimeMillis()
+        if (!force && now - failedAt < RETRY_MS) return null
         if (force || cached == null || now - cachedAt > CACHE_MS) {
-            cached = client.home()
+            cached = try {
+                client.home()
+            } catch (e: Exception) {
+                failedAt = now
+                throw e
+            }
             cachedAt = now
+            failedAt = 0
         }
         return cached
     }
 
     private companion object {
         const val CACHE_MS = 5 * 60_000L
+        const val RETRY_MS = 60_000L
     }
 }

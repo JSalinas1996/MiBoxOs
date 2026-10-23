@@ -14,34 +14,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import app.cash.paparazzi.DeviceConfig
-import app.cash.paparazzi.Paparazzi
-import app.cash.paparazzi.detectEnvironment
-import com.android.resources.Density
-import com.android.resources.ScreenOrientation
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onRoot
+import com.github.takahirom.roborazzi.captureRoboImage
 import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantState
 import com.jsalinas.miboxos.hue.HueStatus
 import com.jsalinas.miboxos.wallpaper.Wallpaper
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
-/** Capturas con apps ficticias: logos genéricos dibujados acá, no marcas reales. */
+/**
+ * Capturas para el README con apps ficticias (logos genéricos dibujados acá, no marcas reales).
+ * Solo escriben archivos al grabar: ./gradlew recordRoborazziDebug
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28], qualifiers = "w960dp-h540dp-land-xhdpi")
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreenshotTest {
     @get:Rule
-    val paparazzi = Paparazzi(
-        // Paparazzi 1.3.x no lee la plataforma 36; la UI no usa APIs nuevas, así que se renderiza con la 34
-        environment = detectEnvironment().copy(compileSdkVersion = 34),
-        deviceConfig = DeviceConfig.NEXUS_5.copy(
-            screenWidth = 1920,
-            screenHeight = 1080,
-            xdpi = 320,
-            ydpi = 320,
-            density = Density.XHIGH,
-            orientation = ScreenOrientation.LANDSCAPE,
-        ),
-    )
+    val compose = createComposeRule()
 
     // Lazy: los Bitmap solo se pueden crear una vez que Paparazzi inicializó layoutlib
     private val apps by lazy {
@@ -62,27 +59,28 @@ class ScreenshotTest {
     private val earth by lazy { asset("tierra") }
 
     @Test
-    fun homeDark() = shot(dark = true)
+    fun homeDark() = shot("homeDark", dark = true)
 
     @Test
-    fun homeLight() = shot(dark = false)
+    fun homeLight() = shot("homeLight", dark = false)
 
     @Test
-    fun homeEarth() = shot(dark = true, wallpaper = earth, photo = true)
+    fun homeEarth() = shot("homeEarth", dark = true, wallpaper = earth, photo = true)
 
     @Test
-    fun settingsOpen() = shot(dark = true, wallpaper = earth, photo = true, settings = true)
+    fun settingsOpen() = shot("settingsOpen", dark = true, wallpaper = earth, photo = true, settings = true)
 
     @Test
-    fun settingsLight() = shot(dark = false, settings = true)
+    fun settingsLight() = shot("settingsLight", dark = false, settings = true)
 
     @Test
-    fun assistantDone() = shot(
+    fun assistantDone() = shot("assistantDone", 
         dark = true, wallpaper = earth, photo = true,
         state = AssistantState.Done("prendé las luces del living en cálido", "Listo, living en luz cálida."),
     )
 
     private fun shot(
+        name: String,
         dark: Boolean,
         wallpaper: ImageBitmap? = null,
         photo: Boolean = false,
@@ -96,7 +94,7 @@ class ScreenshotTest {
             Wallpaper("saturno", "Saturno", Wallpaper.Asset("", "")),
         )
         val thumbs = wallpapers.filter { it.source != null }.associate { it.id to asset("${it.id}_thumb") }
-        paparazzi.snapshot {
+        compose.setContent {
             CompositionLocalProvider(LocalColors provides appColors(dark, photo)) {
                 Box(Modifier.fillMaxSize()) {
                     HomeScreen(
@@ -126,10 +124,11 @@ class ScreenshotTest {
                 }
             }
         }
+        compose.onRoot().captureRoboImage("../docs/preview/$name.png")
     }
 
     private fun asset(name: String): ImageBitmap =
-        BitmapFactory.decodeFile(File("src/main/assets/wallpapers/$name.webp").absolutePath).asImageBitmap()
+        BitmapFactory.decodeFile(File("src/main/assets/wallpapers/$name.webp").absolutePath)!!.asImageBitmap()
 
     private enum class Glyph { PLAY, STAR, WAVES, CHEVRON, WORD }
 

@@ -1,6 +1,7 @@
 package com.jsalinas.miboxos.assistant
 
 import android.util.Base64
+import com.jsalinas.miboxos.Endpoints
 import com.jsalinas.miboxos.apps.TvApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,7 +32,7 @@ class GeminiClient(private val apiKey: String, private val model: String) {
             .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functions(hueContext != null))))
             .put("toolConfig", JSONObject().put("functionCallingConfig", JSONObject().put("mode", "ANY")))
 
-        val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
+        val conn = URL("${Endpoints.gemini}/v1beta/models/$model:generateContent")
             .openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.connectTimeout = 10_000

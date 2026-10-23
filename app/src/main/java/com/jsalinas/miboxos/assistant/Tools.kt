@@ -64,7 +64,7 @@ object Tools {
                     "escena_hue" -> scene(hue, call.args)?.let { errors += it }
                     else -> errors += "Acción desconocida: ${call.name}"
                 }
-            }.onFailure { errors += "Falló ${call.name}: ${it.message}" }
+            }.onFailure { errors += it.message ?: "Falló ${call.name}" }
         }
         return errors
     }
@@ -98,18 +98,22 @@ object Tools {
     }
 
     private fun searchYouTube(context: Context, query: String) {
-        val search = Intent(Intent.ACTION_SEARCH)
-            .setPackage(YOUTUBE_TV)
-            .putExtra(SearchManager.QUERY, query)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (search.resolveActivity(context.packageManager) != null) {
-            context.startActivity(search)
-        } else {
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query)))
-                    .setPackage(YOUTUBE_TV)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        // Las pantallas de búsqueda no suelen declarar CATEGORY_DEFAULT: se busca la actividad y se abre explícita
+        val searchActivity = context.packageManager
+            .queryIntentActivities(Intent(Intent.ACTION_SEARCH).setPackage(YOUTUBE_TV), 0)
+            .firstOrNull()?.activityInfo
+        val search = searchActivity?.let {
+            Intent(Intent.ACTION_SEARCH)
+                .setClassName(it.packageName, it.name)
+                .putExtra(SearchManager.QUERY, query)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
+        val view = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + Uri.encode(query)))
+            .setPackage(YOUTUBE_TV)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val intent = search ?: view.takeIf { it.resolveActivity(context.packageManager) != null }
+            ?: error("YouTube no está instalado")
+        context.startActivity(intent)
     }
 
     private fun media(context: Context, action: String) {
@@ -145,7 +149,7 @@ object Tools {
     private fun str(description: String) = JSONObject().put("type", "STRING").put("description", description)
 
     private fun enumStr(vararg values: String) =
-        JSONObject().put("type", "STRING").put("enum", JSONArray(values.toList()))
+        JSONObject().put("type", "STRING").put("format", "enum").put("enum", JSONArray(values.toList()))
 
     private fun fn(name: String, description: String, vararg params: Pair<String, JSONObject>): JSONObject {
         val decl = JSONObject().put("name", name).put("description", description)

@@ -32,9 +32,17 @@ class Prefs(context: Context) {
         get() = config.getString(KEY_HUE_ID, "").orEmpty()
         set(value) = config.edit().putString(KEY_HUE_ID, value).apply()
 
+    var hueBridgePort: Int
+        get() = config.getInt(KEY_HUE_PORT, 443)
+        set(value) = config.edit().putInt(KEY_HUE_PORT, value).apply()
+
     var hueAppKey: String
         get() = config.getString(KEY_HUE_KEY, "").orEmpty()
         set(value) = config.edit().putString(KEY_HUE_KEY, value).apply()
+
+    var askedStoragePermission: Boolean
+        get() = config.getBoolean(KEY_ASKED_STORAGE, false)
+        set(value) = config.edit().putBoolean(KEY_ASKED_STORAGE, value).apply()
 
     fun launchCount(packageName: String): Int = launches.getInt(packageName, 0)
 
@@ -45,10 +53,12 @@ class Prefs(context: Context) {
     companion object {
         const val KEY_API = "gemini_api_key"
         const val KEY_MODEL = "gemini_model"
+        private const val KEY_ASKED_STORAGE = "asked_storage"
         private const val KEY_DARK = "dark_mode"
         private const val KEY_WALLPAPER = "wallpaper"
         private const val KEY_HUE_IP = "hue_bridge_ip"
         private const val KEY_HUE_ID = "hue_bridge_id"
+        private const val KEY_HUE_PORT = "hue_bridge_port"
         private const val KEY_HUE_KEY = "hue_app_key"
         const val DEFAULT_MODEL = "gemini-3.8-flash"
     }

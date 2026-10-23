@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -70,6 +71,7 @@ fun HomeScreen(
     firstTileFocus: FocusRequester,
 ) {
     var focused by remember { mutableStateOf<TvApp?>(null) }
+    var gridHasFocus by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         Background(wallpaper)
@@ -85,7 +87,7 @@ fun HomeScreen(
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
-                modifier = Modifier.fillMaxWidth().height(300.dp),
+                modifier = Modifier.fillMaxWidth().height(300.dp).onFocusChanged { gridHasFocus = it.hasFocus },
                 contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 24.dp, bottom = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(28.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -105,8 +107,15 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(apps.isNotEmpty()) {
-        if (apps.isNotEmpty()) runCatching { firstTileFocus.requestFocus() }
+    // Al arrancar y al cerrar Ajustes el foco va a la primera app. La grilla es lazy: la tarjeta puede no
+    // existir todavía en el primer cuadro, así que se reintenta cuadro a cuadro hasta que tome el foco.
+    LaunchedEffect(apps.isNotEmpty(), interactive) {
+        if (apps.isEmpty() || !interactive) return@LaunchedEffect
+        repeat(30) {
+            if (gridHasFocus) return@LaunchedEffect
+            runCatching { firstTileFocus.requestFocus() }
+            withFrameNanos { }
+        }
     }
 }
 

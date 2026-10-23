@@ -16,11 +16,18 @@ Render real del código con apps ficticias (logos genéricos). En la TV, la tarj
 | **Fondo Tierra** | **Ajustes** |
 | ![](docs/preview/homeEarth.png) | ![](docs/preview/settingsOpen.png) |
 
-Para regenerarlas (Paparazzi 1.3.x no lee la plataforma 36, por eso se compila contra la 35):
+Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
-```
-./gradlew recordPaparazziRelease -PcompileSdkOverride=35 -x checkReleaseAarMetadata
-```
+## Tests
+
+`./gradlew testDebugUnitTest` corre 74 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+
+- **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
+- **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.
+- **Hue** (`HueClientTest`, `HueControllerTest`): vinculación con el botón, lectura de la casa, luces/brillo/color/escenas, certificado del bridge (rechaza impostores), bridge caído.
+- **Apps y fondos** (`AppRepositoryTest`, `WallpapersTest`).
+
+Lo que no cubren: el micrófono del control real, la API real de Gemini (sin key en CI), un bridge real y el rendimiento en la Mi Box.
 
 ## Requisitos
 

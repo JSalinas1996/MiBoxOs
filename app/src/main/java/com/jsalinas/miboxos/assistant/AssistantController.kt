@@ -56,6 +56,9 @@ class AssistantController(
         level = 0f
     }
 
+    /** Muestra un aviso en el panel del asistente (por ejemplo, permiso de micrófono denegado). */
+    fun fail(message: String) = show(AssistantState.Failed(message))
+
     private fun start() {
         val key = prefs.geminiApiKey
         if (key.isBlank()) {
@@ -63,9 +66,9 @@ class AssistantController(
             return
         }
         job?.cancel()
+        state = AssistantState.Listening
         job = scope.launch {
             try {
-                state = AssistantState.Listening
                 val recording = recorder.record { level = it }
                 level = 0f
                 if (!recording.heardSpeech) {

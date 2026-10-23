@@ -33,9 +33,12 @@ class AppRepository(private val context: Context, private val prefs: Prefs) {
             for (info in pm.queryIntentActivities(intent, 0)) {
                 val pkg = info.activityInfo.packageName
                 if (pkg == context.packageName || !seen.add(pkg)) continue
-                val tile = info.activityInfo.loadBanner(pm)?.render(TILE_W, TILE_H)
-                    ?: tileFromIcon(info.loadIcon(pm))
-                result += TvApp(pkg, info.loadLabel(pm).toString(), tile.asImageBitmap())
+                // Una app con recursos rotos se saltea: un launcher que se cierra deja la TV en negro
+                runCatching {
+                    val tile = info.activityInfo.loadBanner(pm)?.render(TILE_W, TILE_H)
+                        ?: tileFromIcon(info.loadIcon(pm))
+                    TvApp(pkg, info.loadLabel(pm).toString(), tile.asImageBitmap())
+                }.onSuccess { result += it }
             }
         }
         result.sortedWith(

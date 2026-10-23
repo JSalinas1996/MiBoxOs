@@ -13,7 +13,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - run: ./gradlew assembleRelease lintRelease --no-daemon
+      - run: ./gradlew testDebugUnitTest assembleRelease lintRelease --no-daemon
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: test-reports
+          path: app/build/reports/tests/
       - uses: actions/upload-artifact@v5
         with:
           name: MiBoxOs-apk

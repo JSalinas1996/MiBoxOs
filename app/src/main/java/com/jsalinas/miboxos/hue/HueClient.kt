@@ -1,6 +1,7 @@
 package com.jsalinas.miboxos.hue
 
 import android.annotation.SuppressLint
+import com.jsalinas.miboxos.Endpoints
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -16,7 +17,7 @@ import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 import kotlin.math.pow
 
-data class BridgeInfo(val ip: String, val id: String)
+data class BridgeInfo(val ip: String, val id: String, val port: Int = 443)
 
 data class HueTarget(val name: String, val groupedLightId: String?, val lightIds: List<String>)
 
@@ -113,7 +114,7 @@ class HueClient(private val bridge: BridgeInfo, private val appKey: String = "")
         JSONObject(request("GET", "/clip/v2/resource/$type", null)).optJSONArray("data").objects()
 
     private fun request(method: String, path: String, body: JSONObject?): String {
-        val conn = URL("https://${bridge.ip}$path").openConnection() as HttpsURLConnection
+        val conn = URL("https://${bridge.ip}:${bridge.port}$path").openConnection() as HttpsURLConnection
         conn.sslSocketFactory = sslContext.socketFactory
         conn.hostnameVerifier = hostnameVerifier
         conn.requestMethod = method
@@ -197,11 +198,13 @@ internal fun hexToXy(hex: String): Pair<Double, Double>? {
 /** Busca el bridge con el servicio de descubrimiento de Philips (requiere que el bridge tenga internet). */
 suspend fun discoverBridge(): BridgeInfo? = withContext(Dispatchers.IO) {
     runCatching {
-        val conn = URL("https://discovery.meethue.com/").openConnection() as HttpURLConnection
+        val conn = URL(Endpoints.hueDiscovery).openConnection() as HttpURLConnection
         conn.connectTimeout = 5_000
         conn.readTimeout = 5_000
         val text = conn.inputStream.bufferedReader().use { it.readText() }
         conn.disconnect()
-        JSONArray(text).optJSONObject(0)?.let { BridgeInfo(it.getString("internalipaddress"), it.optString("id")) }
+        JSONArray(text).optJSONObject(0)?.let {
+            BridgeInfo(it.getString("internalipaddress"), it.optString("id"), it.optInt("port", 443))
+        }
     }.getOrNull()
 }
