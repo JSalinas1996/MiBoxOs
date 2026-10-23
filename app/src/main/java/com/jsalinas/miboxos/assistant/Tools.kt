@@ -3,6 +3,7 @@ package com.jsalinas.miboxos.assistant
 import android.accessibilityservice.AccessibilityService
 import android.app.SearchManager
 import com.jsalinas.miboxos.GlobalAssistant
+import com.jsalinas.miboxos.MiBoxApp
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -35,6 +36,9 @@ object Tools {
             "accion" to enumStr("subir", "bajar", "silenciar", "activar_sonido"),
             "pasos" to JSONObject().put("type", "INTEGER").put("description", "Cuántos pasos subir o bajar (1-10).")))
         .put(fn("abrir_ajustes", "Abre los ajustes del sistema."))
+        .put(fn("apagar_tv", "Apaga la TV ahora o programa el apagado.",
+            "minutos" to JSONObject().put("type", "INTEGER").put("description", "En cuántos minutos apagar; 0 = ahora.")))
+        .put(fn("cancelar_apagado", "Cancela el apagado programado."))
 
     /** Solo se declaran si hay un Hue Bridge vinculado. */
     fun hueDeclarations(): JSONArray = JSONArray()
@@ -67,6 +71,16 @@ object Tools {
                     "volumen" -> volume(context, call.args.optString("accion"), call.args.optInt("pasos", 2))
                     "abrir_ajustes" -> context.startActivity(
                         Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    "apagar_tv" -> {
+                        val sleep = (context.applicationContext as? MiBoxApp)?.sleep
+                        val minutes = call.args.optInt("minutos", 0)
+                        when {
+                            sleep == null -> errors += "No se pudo apagar"
+                            minutes > 0 -> sleep.startTimer(minutes)
+                            else -> sleep.sleepNow()?.let { errors += it }
+                        }
+                    }
+                    "cancelar_apagado" -> (context.applicationContext as? MiBoxApp)?.sleep?.cancelTimer()
                     "ir_al_inicio" -> globalAction(AccessibilityService.GLOBAL_ACTION_HOME)?.let { errors += it }
                     "atras" -> globalAction(AccessibilityService.GLOBAL_ACTION_BACK)?.let { errors += it }
                     "luces" -> lights(hue, call.args)?.let { errors += it }
@@ -173,7 +187,7 @@ object Tools {
             decl.put("parameters", JSONObject()
                 .put("type", "OBJECT")
                 .put("properties", props)
-                .put("required", JSONArray(params.map { it.first }.filter { it != "pasos" })))
+                .put("required", JSONArray(params.map { it.first }.filter { it != "pasos" && it != "minutos" })))
         }
         return decl
     }

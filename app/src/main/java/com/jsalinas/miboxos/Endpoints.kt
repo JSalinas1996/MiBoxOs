@@ -4,4 +4,5 @@ package com.jsalinas.miboxos
 object Endpoints {
     @Volatile var gemini = "https://generativelanguage.googleapis.com"
     @Volatile var hueDiscovery = "https://discovery.meethue.com/"
+    @Volatile var latestRelease = "https://api.github.com/repos/JSalinas1996/MiBoxOs/releases/latest"
 }

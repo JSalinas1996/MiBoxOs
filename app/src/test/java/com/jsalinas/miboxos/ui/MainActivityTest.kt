@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -198,6 +199,74 @@ class MainActivityTest {
         compose.waitForIdle()
         compose.onNodeWithTag("screensaver").assertDoesNotExist()
         compose.onNodeWithText("Probar ahora").assertExists()
+    }
+
+    @Test fun edicion_mantenerOkMoverConFlechasYTerminar() {
+        launch()
+        // Fotos, Netflix, Spotify, Asistente, Ajustes, YouTube: mantener OK sobre Netflix
+        key(Key.DirectionRight)
+        compose.onNode(hasContentDescription("Netflix") and hasClickAction()).performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("appOptions").assertExists() }.isSuccess }
+        compose.waitForIdle()
+        row("Mover").assertIsFocused()
+        key(Key.DirectionCenter)
+        compose.waitForIdle()
+        // Dos lugares a la derecha y una fila abajo (5 lugares): Netflix queda al final
+        key(Key.DirectionRight)
+        key(Key.DirectionRight)
+        assertEquals(listOf("com.example.phoneonly", "com.spotify.tv.android", "miboxos.assistant", "com.netflix.ninja"), prefs.appOrder.take(4))
+        key(Key.DirectionDown)
+        assertEquals("com.netflix.ninja", prefs.appOrder.last())
+        compose.waitForIdle()
+        focused("Netflix")
+        // OK termina; ahora las flechas vuelven a mover el foco, no la app
+        key(Key.DirectionCenter)
+        val order = prefs.appOrder
+        key(Key.DirectionLeft)
+        assertEquals(order, prefs.appOrder)
+    }
+
+    @Test fun edicion_ocultarYVolverAMostrarDesdeAjustes() {
+        launch()
+        key(Key.DirectionRight)
+        compose.onNode(hasContentDescription("Netflix") and hasClickAction()).performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("appOptions").assertExists() }.isSuccess }
+        select("Ocultar")
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Netflix").assertDoesNotExist()
+        assertTrue("com.netflix.ninja" in prefs.hiddenApps)
+
+        selectDescription("Ajustes")
+        waitText("Apps")
+        compose.onNode(hasText("Apps") and hasText("1 ocultas")).assertExists()
+        select("Apps")
+        waitText("OCULTAS")
+        select("Netflix")
+        assertFalse("com.netflix.ninja" in prefs.hiddenApps)
+    }
+
+    @Test fun edicion_ajustesNoSePuedeOcultar() {
+        launch()
+        compose.onNode(hasContentDescription("Ajustes") and hasClickAction()).performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("appOptions").assertExists() }.isSuccess }
+        compose.onNodeWithText("Mover").assertExists()
+        compose.onNodeWithText("Ocultar").assertDoesNotExist()
+        activityKey(KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithTag("appOptions").assertDoesNotExist()
+    }
+
+    @Test fun asistente_respondeEnVozSegunAjustes() {
+        launch(Intent(app, MainActivity::class.java).putExtra("gemini_api_key", "k"))
+        selectDescription("Ajustes")
+        waitText("Philips Hue")
+        // "Asistente" también es el nombre del ícono del inicio: se elige la fila por su valor
+        compose.onNode(hasText("Asistente") and hasText("Listo")).performSemanticsAction(SemanticsActions.OnClick)
+        waitText("Responder en voz")
+        compose.onNode(hasText("Responder en voz") and hasText("Sí")).assertExists()
+        select("Responder en voz")
+        assertFalse(prefs.voiceReplies)
+        compose.onNode(hasText("Responder en voz") and hasText("No")).assertExists()
     }
 
     @Test fun ajustes_recuerdaModoYFondoAlReiniciar() {

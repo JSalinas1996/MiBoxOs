@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <!-- "Seguir viendo": leer lo que publican las apps en la fila Watch Next de Android TV -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <!-- Actualizarse sola desde GitHub (Android igual pide confirmar) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -43,17 +45,43 @@
             android:launchMode="singleTask"
             android:screenOrientation="landscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|uiMode">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
+            <!-- HOME va por alias: la red de seguridad (CrashGuard) puede pasarlo a SafeHomeAlias -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity-alias
+            android:name=".HomeAlias"
+            android:exported="true"
+            android:enabled="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity
+            android:name=".safety.SafeHomeActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <activity-alias
+            android:name=".SafeHomeAlias"
+            android:exported="true"
+            android:enabled="false"
+            android:targetActivity=".safety.SafeHomeActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- Asistente en cualquier app: botón de voz del control -->
         <service
@@ -71,6 +99,19 @@
             android:name=".global.MicForegroundService"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+
+        <!-- "Ahora suena": acceso a las sesiones multimedia de otras apps -->
+        <service
+            android:name=".nowplaying.MediaListenerService"
+            android:exported="true"
+            android:label="MiBoxOs: Ahora suena"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver android:name=".update.UpdateStatusReceiver" android:exported="false" />
 
         <!-- Modo reposo: protector de pantalla del sistema -->
         <service

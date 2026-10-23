@@ -15,15 +15,29 @@ android {
         // Mi Box S (1.ª gen) corre Android TV 9 = API 28
         minSdk = 28
         targetSdk = 34
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 7
+        versionName = "0.7.0"
+    }
+
+    // Clave fija de MiBoxOs: sin ella, cada versión tendría otra firma y Android no la instalaría
+    // encima de la anterior (ni por ADB ni con la actualización automática). Viene de variables de
+    // entorno: en GitHub, de los secrets del repo; nunca se sube al repo.
+    val releaseKeystore = System.getenv("MIBOX_KEYSTORE_FILE")
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("MIBOX_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("MIBOX_KEY_ALIAS") ?: "miboxos"
+                keyPassword = System.getenv("MIBOX_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Firmado con la clave debug para poder instalarlo por ADB sin keystore propio
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

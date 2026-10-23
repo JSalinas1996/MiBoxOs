@@ -140,6 +140,21 @@ class ControlCenterAndWatchNextTest {
         compose.onNodeWithTag("screensaver").assertDoesNotExist()
     }
 
+    @Test fun centroDeControl_apagarYTemporizador() {
+        launch()
+        activityKey(KeyEvent.KEYCODE_MENU)
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("cc:timer").assertExists() }.isSuccess }
+        compose.onNodeWithTag("cc:timer").performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithText("En 15 min").assertExists()
+        assertEquals(15, mibox.sleep.timerMinutes)
+        compose.onNodeWithTag("cc:timer").performSemanticsAction(SemanticsActions.OnClick)
+        compose.onNodeWithText("En 30 min").assertExists()
+        mibox.sleep.cancelTimer()
+        // Sin el asistente global no se puede suspender: lo explica
+        compose.onNodeWithTag("cc:apagar").performSemanticsAction(SemanticsActions.OnClick)
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithText("asistente en cualquier app", substring = true).assertExists() }.isSuccess }
+    }
+
     @Test fun centroDeControl_ajustesAbreAjustesDelLauncher() {
         launch()
         activityKey(KeyEvent.KEYCODE_MENU)

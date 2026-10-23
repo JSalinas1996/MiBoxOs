@@ -23,10 +23,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.lifecycle.lifecycleScope
+import com.jsalinas.miboxos.apps.AppOrder
 import com.jsalinas.miboxos.apps.SystemTiles
 import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantState
 import com.jsalinas.miboxos.global.AssistantKeys
+import com.jsalinas.miboxos.ui.AppOptions
 import com.jsalinas.miboxos.ui.GlobalLayers
 import com.jsalinas.miboxos.ui.HomeScreen
 import com.jsalinas.miboxos.ui.LocalColors
@@ -60,6 +62,13 @@ class MainActivity : ComponentActivity() {
     private var screensaverSeconds by mutableStateOf(20)
     private var screensaverOnlyMine by mutableStateOf(false)
     private var accessibilityOn by mutableStateOf(false)
+    private var appOrder by mutableStateOf<List<String>>(emptyList())
+    private var hiddenApps by mutableStateOf<Set<String>>(emptySet())
+    private var voiceReplies by mutableStateOf(true)
+    /** App con el menú Mover/Ocultar abierto. */
+    private var optionsFor by mutableStateOf<TvApp?>(null)
+    /** App que se está moviendo con las flechas. */
+    private var editing by mutableStateOf<String?>(null)
     private val systemTiles by lazy { SystemTiles.assistant() to SystemTiles.settings() }
     private val firstTileFocus = FocusRequester()
 
@@ -84,6 +93,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         screensaverSeconds = prefs.screensaverSeconds
         screensaverOnlyMine = prefs.screensaverOnlyMine
+        appOrder = prefs.appOrder
+        hiddenApps = prefs.hiddenApps
+        voiceReplies = prefs.voiceReplies
+        app.updater.check()
         applyConfigExtras(intent)
         selectWallpaper(prefs.wallpaper)
         if (app.hue.isPaired) app.hue.refreshSummary()
@@ -98,6 +111,8 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 when {
                     assistant.state != AssistantState.Idle -> assistant.dismiss()
+                    optionsFor != null -> optionsFor = null
+                    editing != null -> editing = null
                     controlCenter.visible -> controlCenter.close()
                     settingsOpen && settingsPage != SettingsPage.ROOT -> settingsPage = SettingsPage.ROOT
                     settingsOpen -> closeSettings()
@@ -111,6 +126,7 @@ class MainActivity : ComponentActivity() {
                     Modifier.fillMaxSize().onPreviewKeyEvent { event ->
                         // Aprender el botón del asistente (si el servicio global no está activo, llega acá)
                         if (AssistantKeys.learn(prefs, event.nativeKeyEvent)) return@onPreviewKeyEvent true
+                        if (editing != null && onEditKey(event.nativeKeyEvent)) return@onPreviewKeyEvent true
                         // Modo reposo: cualquier botón lo cierra (y no hace nada más)
                         if (!controlCenter.screensaverVisible) return@onPreviewKeyEvent false
                         if (event.type == KeyEventType.KeyUp) controlCenter.screensaverVisible = false
@@ -121,11 +137,24 @@ class MainActivity : ComponentActivity() {
                         apps = homeApps(),
                         wallpaper = wallpaperImage,
                         frosted = wallpaperFrosted,
-                        interactive = !settingsOpen && !controlCenter.visible,
+                        interactive = !settingsOpen && !controlCenter.visible && optionsFor == null,
                         onLaunch = ::launch,
                         firstTileFocus = firstTileFocus,
                         continueWatching = continueWatching,
                         onWatchNext = ::openWatchNext,
+                        editing = editing,
+                        onLongPress = { if (editing == null) optionsFor = it },
+                    )
+                    AppOptions(
+                        app = optionsFor,
+                        onMove = {
+                            editing = optionsFor?.packageName
+                            optionsFor = null
+                        },
+                        onHide = {
+                            optionsFor?.let { hiddenApps = hiddenApps + it.packageName; prefs.hiddenApps = hiddenApps }
+                            optionsFor = null
+                        },
                     )
                     SettingsScreen(
                         visible = settingsOpen,
@@ -146,6 +175,11 @@ class MainActivity : ComponentActivity() {
                             globalAssistantOn = GlobalAssistant.connected || accessibilityOn,
                             assistantKeyLabel = if (AssistantKeys.learning) "Presioná el botón…" else AssistantKeys.label(prefs),
                             watchNextAllowed = watchNextAllowed,
+                            hiddenApps = (apps + systemTiles.toList()).filter { it.packageName in hiddenApps }.map { it.packageName to it.label },
+                            customOrder = appOrder.isNotEmpty(),
+                            voiceReplies = voiceReplies,
+                            nowPlayingAccess = app.nowPlaying.hasAccess(),
+                            update = app.updater.status,
                         ),
                         actions = SettingsActions(
                             onNavigate = { settingsPage = it },
@@ -160,6 +194,12 @@ class MainActivity : ComponentActivity() {
                             onGlobalAssistant = { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) },
                             onLearnKey = { AssistantKeys.learning = true },
                             onWatchNextPermission = { tvListingsPermission.launch(WatchNextRepository.PERMISSION) },
+                            onUnhide = { pkg -> hiddenApps = hiddenApps - pkg; prefs.hiddenApps = hiddenApps },
+                            onResetOrder = { appOrder = emptyList(); prefs.appOrder = emptyList() },
+                            onVoiceReplies = { voiceReplies = it; prefs.voiceReplies = it },
+                            onNowPlayingAccess = ::openNotificationAccess,
+                            onCheckUpdate = { app.updater.check(force = true) },
+                            onInstallUpdate = app.updater::install,
                         ),
                     )
                     // Con el asistente global activo, estas capas las dibuja el servicio (encima de cualquier app)
@@ -219,7 +259,35 @@ class MainActivity : ComponentActivity() {
      */
     private fun homeApps(): List<TvApp> {
         val (assistantTile, settingsTile) = systemTiles
-        return apps.take(3) + assistantTile + settingsTile + apps.drop(3)
+        val default = apps.take(3) + assistantTile + settingsTile + apps.drop(3)
+        return AppOrder.arrange(default, appOrder, hiddenApps)
+    }
+
+    /** Modo edición: las flechas mueven el ícono (una fila = 5 lugares); OK o Atrás terminan. */
+    private fun onEditKey(event: KeyEvent): Boolean {
+        val pkg = editing ?: return false
+        val delta = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> -1
+            KeyEvent.KEYCODE_DPAD_RIGHT -> 1
+            KeyEvent.KEYCODE_DPAD_UP -> -5
+            KeyEvent.KEYCODE_DPAD_DOWN -> 5
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_BACK -> {
+                if (event.action == KeyEvent.ACTION_UP) editing = null
+                return true
+            }
+            else -> return true
+        }
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            appOrder = AppOrder.move(homeApps(), pkg, delta)
+            prefs.appOrder = appOrder
+        }
+        return true
+    }
+
+    /** Acceso a notificaciones (para "Ahora suena"); si este Android TV no expone la pantalla, Ajustes. */
+    private fun openNotificationAccess() {
+        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+        startActivity(if (intent.resolveActivity(packageManager) != null) intent else Intent(Settings.ACTION_SETTINGS))
     }
 
     private fun launch(app: TvApp) {

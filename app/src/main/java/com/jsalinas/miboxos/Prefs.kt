@@ -59,6 +59,29 @@ class Prefs(context: Context) {
         get() = config.getBoolean(KEY_ASKED_LISTINGS, false)
         set(value) = config.edit().putBoolean(KEY_ASKED_LISTINGS, value).apply()
 
+    /** Orden elegido a mano (paquetes); vacío = automático por uso. */
+    var appOrder: List<String>
+        get() = config.getString(KEY_APP_ORDER, "").orEmpty().split(',').filter { it.isNotBlank() }
+        set(value) = config.edit().putString(KEY_APP_ORDER, value.joinToString(",")).apply()
+
+    var hiddenApps: Set<String>
+        get() = config.getStringSet(KEY_HIDDEN, emptySet()).orEmpty().toSet()
+        set(value) = config.edit().putStringSet(KEY_HIDDEN, value).apply()
+
+    /** El asistente lee la respuesta en voz alta. */
+    var voiceReplies: Boolean
+        get() = config.getBoolean(KEY_VOICE_REPLIES, true)
+        set(value) = config.edit().putBoolean(KEY_VOICE_REPLIES, value).apply()
+
+    /** Últimos cierres inesperados (ms), para la red de seguridad. Se escribe en el acto (commit). */
+    var crashTimes: List<Long>
+        get() = config.getString(KEY_CRASHES, "").orEmpty().split(',').mapNotNull { it.toLongOrNull() }
+        set(value) { config.edit().putString(KEY_CRASHES, value.joinToString(",")).commit() }
+
+    var lastUpdateCheck: Long
+        get() = config.getLong(KEY_UPDATE_CHECK, 0)
+        set(value) = config.edit().putLong(KEY_UPDATE_CHECK, value).apply()
+
     var askedStoragePermission: Boolean
         get() = config.getBoolean(KEY_ASKED_STORAGE, false)
         set(value) = config.edit().putBoolean(KEY_ASKED_STORAGE, value).apply()
@@ -76,6 +99,11 @@ class Prefs(context: Context) {
         private const val KEY_SAVER_MINE = "screensaver_only_mine"
         private const val KEY_ASSISTANT_KEY = "assistant_key_code"
         private const val KEY_ASKED_LISTINGS = "asked_tv_listings"
+        private const val KEY_APP_ORDER = "app_order"
+        private const val KEY_HIDDEN = "hidden_apps"
+        private const val KEY_VOICE_REPLIES = "voice_replies"
+        private const val KEY_CRASHES = "crash_times"
+        private const val KEY_UPDATE_CHECK = "last_update_check"
         private const val KEY_ASKED_STORAGE = "asked_storage"
         private const val KEY_DARK = "dark_mode"
         private const val KEY_WALLPAPER = "wallpaper"

@@ -62,6 +62,8 @@ import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import com.jsalinas.miboxos.apps.SystemTiles
 import com.jsalinas.miboxos.hue.HueStatus
+import com.jsalinas.miboxos.update.Release
+import com.jsalinas.miboxos.update.UpdateStatus
 import com.jsalinas.miboxos.wallpaper.Wallpaper
 
 enum class SettingsPage(val title: String) {
@@ -69,6 +71,7 @@ enum class SettingsPage(val title: String) {
     APPEARANCE("Apariencia"),
     WALLPAPER("Fondo"),
     SCREENSAVER("Modo reposo"),
+    APPS("Apps"),
     HUE("Philips Hue"),
     ASSISTANT("Asistente"),
     ABOUT("Acerca de"),
@@ -91,6 +94,12 @@ class SettingsState(
     val globalAssistantOn: Boolean = false,
     val assistantKeyLabel: String = "Botón de voz",
     val watchNextAllowed: Boolean = false,
+    /** Apps ocultas (paquete, nombre). */
+    val hiddenApps: List<Pair<String, String>> = emptyList(),
+    val customOrder: Boolean = false,
+    val voiceReplies: Boolean = true,
+    val nowPlayingAccess: Boolean = false,
+    val update: UpdateStatus = UpdateStatus.Idle,
 )
 
 class SettingsActions(
@@ -106,6 +115,12 @@ class SettingsActions(
     val onGlobalAssistant: () -> Unit = {},
     val onLearnKey: () -> Unit = {},
     val onWatchNextPermission: () -> Unit = {},
+    val onUnhide: (String) -> Unit = {},
+    val onResetOrder: () -> Unit = {},
+    val onVoiceReplies: (Boolean) -> Unit = {},
+    val onNowPlayingAccess: () -> Unit = {},
+    val onCheckUpdate: () -> Unit = {},
+    val onInstallUpdate: (Release) -> Unit = {},
 )
 
 /**
@@ -145,9 +160,10 @@ fun SettingsScreen(visible: Boolean, page: SettingsPage, state: SettingsState, a
                         SettingsPage.APPEARANCE -> AppearancePage(state, actions, firstRow) { illustration = it }
                         SettingsPage.WALLPAPER -> WallpaperPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.SCREENSAVER -> ScreensaverPage(state, actions, firstRow) { illustration = it }
+                        SettingsPage.APPS -> AppsPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.HUE -> HuePage(state, actions, firstRow) { illustration = it }
                         SettingsPage.ASSISTANT -> AssistantPage(state, actions, firstRow) { illustration = it }
-                        SettingsPage.ABOUT -> AboutPage(state, firstRow) { illustration = it }
+                        SettingsPage.ABOUT -> AboutPage(state, actions, firstRow) { illustration = it }
                     }
                 }
             }
@@ -177,6 +193,10 @@ private fun RootPage(state: SettingsState, actions: SettingsActions, rows: Map<S
         is HueStatus.Failed -> "Sin conexión"
         else -> "Vinculando…"
     }
+    (state.update as? UpdateStatus.Available)?.let { available ->
+        SettingsRow("Actualizar a ${available.release.version}", "Nueva versión", chevron = true,
+            onFocus = { onIllustration("about") }) { actions.onInstallUpdate(available.release) }
+    }
     SettingsRow("Apariencia", if (state.darkMode) "Oscuro" else "Claro", chevron = true, focus = rows[SettingsPage.APPEARANCE],
         onFocus = { onIllustration("appearance") }) { actions.onNavigate(SettingsPage.APPEARANCE) }
     SettingsRow("Fondo", wallpaperName, chevron = true, focus = rows[SettingsPage.WALLPAPER],
@@ -185,6 +205,10 @@ private fun RootPage(state: SettingsState, actions: SettingsActions, rows: Map<S
         onFocus = { onIllustration("screensaver") }) { actions.onNavigate(SettingsPage.SCREENSAVER) }
     SettingsRow("Philips Hue", hueValue, chevron = true, focus = rows[SettingsPage.HUE],
         onFocus = { onIllustration("hue") }) { actions.onNavigate(SettingsPage.HUE) }
+    SettingsRow("Apps", if (state.hiddenApps.isEmpty()) (if (state.customOrder) "Orden propio" else "Orden por uso") else "${state.hiddenApps.size} ocultas",
+        chevron = true, focus = rows[SettingsPage.APPS], onFocus = { onIllustration("root") }) { actions.onNavigate(SettingsPage.APPS) }
+    SettingsRow("Ahora suena", if (state.nowPlayingAccess) "Activado" else "Dar acceso", chevron = !state.nowPlayingAccess,
+        onFocus = { onIllustration("watchnext") }) { if (!state.nowPlayingAccess) actions.onNowPlayingAccess() }
     SettingsRow("Seguir viendo", if (state.watchNextAllowed) "Activado" else "Dar permiso", chevron = !state.watchNextAllowed,
         onFocus = { onIllustration("watchnext") }) { if (!state.watchNextAllowed) actions.onWatchNextPermission() }
     SettingsRow("Asistente", if (state.assistantReady) "Listo" else "Falta API key", chevron = true, focus = rows[SettingsPage.ASSISTANT],
@@ -267,6 +291,7 @@ private fun AssistantPage(state: SettingsState, actions: SettingsActions, first:
     SettingsRow("En cualquier app", if (state.globalAssistantOn) "Activado" else "Desactivado", chevron = true, focus = first,
         onClick = actions.onGlobalAssistant)
     SettingsRow("Botón del asistente", state.assistantKeyLabel, onClick = actions.onLearnKey)
+    SettingsRow("Responder en voz", if (state.voiceReplies) "Sí" else "No") { actions.onVoiceReplies(!state.voiceReplies) }
     SettingsRow("API key de Gemini", if (state.assistantReady) "Cargada" else "Falta") {}
     SettingsRow("Modelo", state.model) {}
     Footer(
@@ -277,11 +302,33 @@ private fun AssistantPage(state: SettingsState, actions: SettingsActions, first:
 }
 
 @Composable
-private fun AboutPage(state: SettingsState, first: FocusRequester, onIllustration: (String) -> Unit) {
+private fun AboutPage(state: SettingsState, actions: SettingsActions, first: FocusRequester, onIllustration: (String) -> Unit) {
     LaunchedEffect(Unit) { onIllustration("about") }
     SettingsRow("Versión", state.version, focus = first) {}
+    when (val u = state.update) {
+        is UpdateStatus.Available -> SettingsRow("Instalar ${u.release.version}", "Nueva versión", chevron = true) { actions.onInstallUpdate(u.release) }
+        else -> SettingsRow("Buscar actualización", when (u) {
+            UpdateStatus.Checking -> "Buscando…"
+            UpdateStatus.UpToDate -> "Estás al día"
+            UpdateStatus.Downloading -> "Descargando…"
+            UpdateStatus.WaitingConfirmation -> "Confirmá en pantalla"
+            is UpdateStatus.Failed -> u.message
+            else -> ""
+        }, onClick = actions.onCheckUpdate)
+    }
     SettingsRow("Fondos", "NASA · dominio público") {}
     SettingsRow("Tipografía", "Inter · SIL OFL") {}
+}
+
+@Composable
+private fun AppsPage(state: SettingsState, actions: SettingsActions, first: FocusRequester, onIllustration: (String) -> Unit) {
+    LaunchedEffect(Unit) { onIllustration("root") }
+    SettingsRow("Orden automático (por uso)", null, checked = !state.customOrder, focus = first, onClick = actions.onResetOrder)
+    if (state.hiddenApps.isNotEmpty()) {
+        SectionTitle("OCULTAS")
+        state.hiddenApps.forEach { (pkg, label) -> SettingsRow(label, "Mostrar") { actions.onUnhide(pkg) } }
+    }
+    Footer("Para mover u ocultar una app, mantené apretado OK sobre su ícono en el inicio.")
 }
 
 /** Fila de tvOS: translúcida en reposo; con foco se vuelve blanca, crece apenas y proyecta sombra. */

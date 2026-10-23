@@ -9,6 +9,11 @@ import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantController
 import com.jsalinas.miboxos.controlcenter.ControlCenterModel
 import com.jsalinas.miboxos.global.MicForegroundService
+import com.jsalinas.miboxos.voice.Speaker
+import com.jsalinas.miboxos.update.Updater
+import com.jsalinas.miboxos.power.SleepController
+import com.jsalinas.miboxos.nowplaying.NowPlayingModel
+import com.jsalinas.miboxos.safety.CrashGuard
 import com.jsalinas.miboxos.hue.HueController
 import com.jsalinas.miboxos.wallpaper.Wallpapers
 import kotlinx.coroutines.CoroutineScope
@@ -37,13 +42,25 @@ class MiBoxApp : Application() {
             this, prefs, repo, hue, scope, apps = { apps },
             screenContext = { GlobalAssistant.screenContext() },
             onRecording = { recording -> if (GlobalAssistant.connected) MicForegroundService.set(this, recording) },
+            onReply = { if (prefs.voiceReplies) speaker.speak(it) },
+            onDismiss = { if (speakerCreated) speaker.stop() },
         )
     }
 
-    val controlCenter by lazy { ControlCenterModel(hue, scope) }
+    private var speakerCreated = false
+    val speaker by lazy { speakerCreated = true; Speaker(this) }
+
+    val updater by lazy { Updater(this, prefs, scope) }
+
+    val sleep by lazy { SleepController(scope) }
+
+    val nowPlaying by lazy { NowPlayingModel(this) }
+
+    val controlCenter by lazy { ControlCenterModel(hue, scope, onOpen = { nowPlaying.refresh() }) }
 
     override fun onCreate() {
         super.onCreate()
+        CrashGuard.install(this, prefs)
         darkMode = prefs.darkMode
     }
 }

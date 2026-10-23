@@ -6,6 +6,10 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -88,7 +92,12 @@ fun HomeScreen(
     firstTileFocus: FocusRequester,
     continueWatching: List<WatchNextItem> = emptyList(),
     onWatchNext: (WatchNextItem) -> Unit = {},
+    /** Paquete de la app que se está moviendo (tiembla); null fuera del modo edición. */
+    editing: String? = null,
+    onLongPress: (TvApp) -> Unit = {},
 ) {
+    // Un FocusRequester por app: al mover un ícono, el foco lo acompaña a su nueva posición
+    val requesters = remember { mutableMapOf<String, FocusRequester>() }
     var focusedIndex by remember { mutableIntStateOf(0) }
     var gridHasFocus by remember { mutableStateOf(false) }
     var shelfHasFocus by remember { mutableStateOf(false) }
@@ -131,19 +140,29 @@ fun HomeScreen(
                 Row(Modifier.height(ROW_PITCH).width(ICON_W * COLUMNS + COL_GAP * (COLUMNS - 1)), horizontalArrangement = Arrangement.spacedBy(COL_GAP)) {
                     rowApps.forEachIndexed { c, app ->
                         val index = r * COLUMNS + c
+                        val requester = if (index == 0 && editing == null) firstTileFocus else requesters.getOrPut(app.packageName) { FocusRequester() }
                         AppIcon(
                             app = app,
                             isFocused = gridHasFocus && !shelfHasFocus && focusedIndex == index,
+                            jiggle = app.packageName == editing,
                             onFocus = { focusedIndex = index },
                             onClick = { onLaunch(app) },
+                            onLongClick = { onLongPress(app) },
                             modifier = Modifier
-                                .focusProperties { canFocus = interactive }
-                                .then(if (index == 0) Modifier.focusRequester(firstTileFocus) else Modifier),
+                                .focusProperties { canFocus = interactive || app.packageName == editing }
+                                .focusRequester(requester),
                         )
                     }
                 }
             }
         }
+    }
+
+    // Mientras se mueve un ícono, el foco lo sigue a su nueva posición
+    LaunchedEffect(editing, apps.indexOfFirst { it.packageName == editing }) {
+        val pkg = editing ?: return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { requesters[pkg]?.requestFocus() }
     }
 
     // Al arrancar y al volver de Ajustes el foco va a la primera app; se reintenta cuadro a cuadro
@@ -270,7 +289,14 @@ private fun AppIcon(
     onFocus: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    jiggle: Boolean = false,
+    onLongClick: () -> Unit = {},
 ) {
+    // Modo edición como en tvOS: el ícono que se mueve tiembla
+    val wobble = if (jiggle) {
+        val t = rememberInfiniteTransition(label = "jiggle")
+        t.animateFloat(-1.6f, 1.6f, infiniteRepeatable(tween(140, easing = LinearEasing), RepeatMode.Reverse), label = "rot").value
+    } else 0f
     val labelAlpha by animateFloatAsState(if (isFocused) 1f else 0f, tween(180), label = "label")
     // Brillo especular que cruza el ícono al recibir el foco
     val shine = remember { Animatable(-0.6f) }
@@ -283,8 +309,10 @@ private fun AppIcon(
     Column(Modifier.width(ICON_W), horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             onClick = onClick,
+            onLongClick = onLongClick,
             modifier = modifier
                 .size(ICON_W, ICON_H)
+                .graphicsLayer { rotationZ = wobble }
                 .onFocusChanged { if (it.isFocused) onFocus() },
             shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
             colors = ClickableSurfaceDefaults.colors(

@@ -34,6 +34,9 @@ class AssistantController(
     private val screenContext: () -> String? = { null },
     /** Avisa cuándo empieza y termina de grabar (el asistente global sostiene el micrófono con un servicio en primer plano). */
     private val onRecording: (Boolean) -> Unit = {},
+    /** Respuesta lista para leer en voz alta (si está activado en Ajustes). */
+    private val onReply: (String) -> Unit = {},
+    private val onDismiss: () -> Unit = {},
 ) {
     var state: AssistantState by mutableStateOf(AssistantState.Idle)
         private set
@@ -55,6 +58,7 @@ class AssistantController(
     }
 
     fun dismiss() {
+        onDismiss()
         job?.cancel()
         recorder.stop()
         state = AssistantState.Idle
@@ -96,7 +100,9 @@ class AssistantController(
                 )
                 val errors = Tools.execute(context, repo, hue, reply.calls)
                 val text = (listOf(reply.reply) + errors).filter { it.isNotBlank() }.joinToString("\n")
-                show(AssistantState.Done(reply.transcript, text.ifBlank { "Listo." }))
+                val shown = text.ifBlank { "Listo." }
+                show(AssistantState.Done(reply.transcript, shown))
+                onReply(shown)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

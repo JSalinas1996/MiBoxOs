@@ -14,7 +14,12 @@ import kotlinx.coroutines.launch
  * Estado del Centro de control y del modo reposo "a pedido", compartido por el launcher y el
  * asistente global: el que esté en pantalla lo dibuja.
  */
-class ControlCenterModel(private val hue: HueController, private val scope: CoroutineScope) {
+class ControlCenterModel(
+    private val hue: HueController,
+    private val scope: CoroutineScope,
+    /** Se llama al abrir (para refrescar "Ahora suena"). */
+    private val onOpen: () -> Unit = {},
+) {
     var visible by mutableStateOf(false)
         private set
     var screensaverVisible by mutableStateOf(false)
@@ -28,6 +33,7 @@ class ControlCenterModel(private val hue: HueController, private val scope: Coro
 
     fun open() {
         visible = true
+        onOpen()
         if (!hue.isPaired) return
         rooms = null
         scope.launch {

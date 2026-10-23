@@ -61,6 +61,9 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import com.jsalinas.miboxos.apps.SystemTiles
+import com.jsalinas.miboxos.nowplaying.NowPlaying
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,6 +77,9 @@ class ControlCenterState(
     /** null mientras carga. */
     val rooms: List<RoomState>?,
     val scenes: List<String>,
+    val nowPlaying: NowPlaying? = null,
+    /** Minutos del temporizador de apagado, o null. */
+    val sleepTimer: Int? = null,
 )
 
 class ControlCenterActions(
@@ -83,6 +89,11 @@ class ControlCenterActions(
     val onScreensaver: () -> Unit = {},
     val onDarkMode: (Boolean) -> Unit = {},
     val onSettings: () -> Unit = {},
+    val onPlayPause: () -> Unit = {},
+    val onNext: () -> Unit = {},
+    val onPrevious: () -> Unit = {},
+    val onSleepNow: () -> Unit = {},
+    val onCycleTimer: () -> Unit = {},
 )
 
 /**
@@ -120,6 +131,18 @@ fun ControlCenter(visible: Boolean, state: ControlCenterState, actions: ControlC
                         MoonIcon(it, filled = state.darkMode)
                     }
                     QuickTile("Ajustes", onClick = actions.onSettings) { GearIcon() }
+                }
+
+                state.nowPlaying?.let { NowPlayingCard(it, actions) }
+
+                BasicText("Apagar", style = Type.title.copy(fontSize = 18.sp), modifier = Modifier.padding(top = 12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SceneChip("Apagar ahora", Modifier.weight(1f).testTag("cc:apagar"), actions.onSleepNow)
+                    SceneChip(
+                        state.sleepTimer?.let { "En $it min" } ?: "Temporizador",
+                        Modifier.weight(1f).testTag("cc:timer"),
+                        actions.onCycleTimer,
+                    )
                 }
 
                 BasicText("Inicio", style = Type.title.copy(fontSize = 18.sp), modifier = Modifier.padding(top = 12.dp))
@@ -225,6 +248,74 @@ private fun RoomTile(room: RoomState, modifier: Modifier, onClick: () -> Unit) {
             Column {
                 BasicText(room.name, style = Type.body.copy(color = main, fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicText(if (lit) "Encendida" else "Apagada", style = Type.caption.copy(color = main.copy(alpha = 0.6f), fontSize = 12.sp))
+            }
+        }
+    }
+}
+
+/** "Ahora suena": portada, título y controles de lo que se reproduce en cualquier app. */
+@Composable
+private fun NowPlayingCard(np: NowPlaying, actions: ControlCenterActions) {
+    val colors = LocalColors.current
+    Column(
+        Modifier.testTag("cc:nowPlaying").fillMaxWidth().padding(top = 10.dp).background(colors.control, RoundedCornerShape(20.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(56.dp).background(colors.tile, RoundedCornerShape(10.dp))) {
+                np.artwork?.let { Image(it, null, Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop) }
+            }
+            Column(Modifier.weight(1f)) {
+                BasicText(np.title, style = Type.body.copy(fontSize = 15.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicText(listOf(np.subtitle, np.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = Type.caption.copy(fontSize = 12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            MediaButton("Anterior", actions.onPrevious) { TransportIcon(it, TransportKind.PREVIOUS) }
+            MediaButton(if (np.playing) "Pausa" else "Reproducir", actions.onPlayPause) {
+                TransportIcon(it, if (np.playing) TransportKind.PAUSE else TransportKind.PLAY)
+            }
+            MediaButton("Siguiente", actions.onNext) { TransportIcon(it, TransportKind.NEXT) }
+        }
+    }
+}
+
+@Composable
+private fun MediaButton(label: String, onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
+    val colors = LocalColors.current
+    var focused by remember { mutableStateOf(false) }
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(46.dp).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label }.testTag("cc:$label"),
+        shape = ClickableSurfaceDefaults.shape(CircleShape),
+        colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = colors.controlFocused),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { icon(if (focused) colors.onControlFocused else colors.text) }
+    }
+}
+
+private enum class TransportKind { PLAY, PAUSE, NEXT, PREVIOUS }
+
+@Composable
+private fun TransportIcon(color: Color, kind: TransportKind) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        fun tri(x0: Float, x1: Float) = androidx.compose.ui.graphics.Path().apply { moveTo(x0, 0f); lineTo(x1, h / 2); lineTo(x0, h); close() }
+        when (kind) {
+            TransportKind.PLAY -> drawPath(tri(w * 0.2f, w * 0.9f), color)
+            TransportKind.PAUSE -> {
+                drawRect(color, Offset(w * 0.18f, 0f), Size(w * 0.22f, h))
+                drawRect(color, Offset(w * 0.6f, 0f), Size(w * 0.22f, h))
+            }
+            TransportKind.NEXT -> {
+                drawPath(tri(0f, w * 0.5f), color); drawPath(tri(w * 0.45f, w * 0.95f), color)
+            }
+            TransportKind.PREVIOUS -> {
+                drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(w * 0.5f, 0f); lineTo(0f, h / 2); lineTo(w * 0.5f, h); close() }, color)
+                drawPath(androidx.compose.ui.graphics.Path().apply { moveTo(w * 0.95f, 0f); lineTo(w * 0.45f, h / 2); lineTo(w * 0.95f, h); close() }, color)
             }
         }
     }

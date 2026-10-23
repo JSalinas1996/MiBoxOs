@@ -35,7 +35,7 @@ class GeminiClientTest {
         assertTrue(parts.getJSONObject(0).getString("text").contains("Netflix (com.netflix.ninja)"))
         assertEquals("audio/wav", parts.getJSONObject(1).getJSONObject("inlineData").getString("mimeType"))
         val names = functionNames(body)
-        assertEquals(listOf("mostrar_respuesta", "abrir_app", "buscar_en_youtube", "control_multimedia", "volumen", "abrir_ajustes"), names)
+        assertEquals(listOf("mostrar_respuesta", "abrir_app", "buscar_en_youtube", "control_multimedia", "volumen", "abrir_ajustes", "apagar_tv", "cancelar_apagado"), names)
         assertEquals("ANY", body.getJSONObject("toolConfig").getJSONObject("functionCallingConfig").getString("mode"))
     }
 

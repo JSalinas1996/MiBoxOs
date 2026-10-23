@@ -72,6 +72,21 @@ class AssistantControllerTest {
         assertEquals("com.netflix.ninja", shadowOf(context).nextStartedActivity.component!!.packageName)
     }
 
+    @Test fun `la respuesta se entrega para leerla en voz y Atras corta la voz`() {
+        val spoken = mutableListOf<String>()
+        var stopped = 0
+        val voiced = AssistantController(context, prefs, repo, HueController(prefs, scope), scope, apps = { emptyList() },
+            onReply = { spoken += it }, onDismiss = { stopped++ })
+        prefs.geminiApiKey = "k"
+        FakeAudio.speech()
+        gemini.response = FakeGemini.reply("hola", "¡Hola! ¿Qué ponemos?")
+        voiced.toggle()
+        waitUntil(what = "fin") { voiced.state is AssistantState.Done }
+        assertEquals(listOf("¡Hola! ¿Qué ponemos?"), spoken)
+        voiced.dismiss()
+        assertEquals(1, stopped)
+    }
+
     @Test fun `errores de acciones se suman a la respuesta`() {
         prefs.geminiApiKey = "k"
         FakeAudio.speech()

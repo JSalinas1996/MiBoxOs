@@ -8,6 +8,12 @@ Launcher con estética tipo Apple TV (tvOS) y asistente de voz con Gemini para l
 - **Seguir viendo (Top Shelf):** lo que dejaste a medias en las apps que publican la fila "Watch Next" de Android TV, con barra de progreso; OK lo abre en ese capítulo.
 - **Centro de control (como tvOS):** hora, Reposo, Asistente, claro/oscuro, Ajustes, habitaciones de Hue para prender/apagar y escenas. Se abre manteniendo el botón de voz (en cualquier app) o con Menú.
 - **Asistente en cualquier app:** el botón de voz del control (el de Google Assistant) abre el asistente con Gemini encima de lo que estés viendo, sin pausarlo.
+- **Mover y ocultar apps (como tvOS):** mantené OK sobre un ícono → Mover (las flechas lo llevan, OK termina) u Ocultar. Las ocultas se recuperan en Ajustes → Apps.
+- **Ahora suena** en el Centro de control: lo que se reproduce en cualquier app, con anterior / play-pausa / siguiente.
+- **Apagar y temporizador** desde el Centro de control o por voz ("apagá la tele en 30 minutos").
+- **El asistente responde en voz** (se puede apagar en Ajustes → Asistente).
+- **Red de seguridad:** si MiBoxOs se cierra 3 veces en 2 minutos, el botón Home abre un inicio de emergencia simple en vez de dejar la TV en negro.
+- **Se actualiza sola** desde las versiones publicadas en GitHub (Ajustes → Acerca de).
 - **Asistente (app en la grilla, estilo Siri):** también con la tecla Buscar/Menú si el control la manda. Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, luces y escenas de Hue, abrir ajustes.
 
 ## Vista previa
@@ -30,7 +36,7 @@ Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 ## Tests
 
-`./gradlew testDebugUnitTest` corre 108 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+`./gradlew testDebugUnitTest` corre 133 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
 
 - **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
 - **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.
@@ -90,6 +96,29 @@ El permiso de micrófono se da una vez abriendo el ícono Asistente del inicio.
 
 Necesita el permiso de "listados de TV" (se pide al primer arranque; si lo rechazaste: Ajustes → Seguir viendo, o `adb shell pm grant com.jsalinas.miboxos android.permission.READ_TV_LISTINGS`). Aparecen las apps que publican su fila "Watch Next" en Android TV; si una app no la publica, no hay nada que mostrar de esa app.
 
+## Ahora suena
+
+Android solo deja leer lo que se reproduce en otras apps con "acceso a notificaciones". Ajustes → Ahora suena, o por ADB:
+
+```
+adb shell cmd notification allow_listener com.jsalinas.miboxos/com.jsalinas.miboxos.nowplaying.MediaListenerService
+```
+
+## Apagar
+
+Usa la acción de suspender que Android 9 le da al servicio de accesibilidad, así que requiere "Asistente en cualquier app" activado. Con HDMI-CEC activado, la TV debería apagarse junto con la Mi Box (no verificado en el equipo).
+
+## Actualizaciones y firma
+
+Todas las versiones se firman con la clave de MiBoxOs (`miboxos-release.jks`), que **no** está en el repo. Android solo instala una versión nueva encima de la anterior si tiene la misma firma, así que guardá esa clave: si se pierde, hay que desinstalar y reinstalar.
+
+Para que GitHub compile y publique versiones firmadas, cargá dos secrets en el repo (Settings → Secrets and variables → Actions → New repository secret):
+
+- `MIBOX_KEYSTORE_BASE64`: el contenido de `miboxos-release.jks.base64`
+- `MIBOX_KEYSTORE_PASSWORD`: la contraseña
+
+Publicar una versión: crear la etiqueta `vX.Y.Z` (por ejemplo `git tag v0.7.0 && git push origin v0.7.0`). El workflow "Publicar versión" compila, corre los tests y la publica; la Mi Box la ofrece en Ajustes → Acerca de. La primera vez Android pide permitir que MiBoxOs instale apps.
+
 ## Modo reposo
 
 En Ajustes → Modo reposo podés probarlo, elegir las imágenes (todas o solo tus fotos) y cada cuánto cambian. Para que Android TV lo use como protector de pantalla:
@@ -125,7 +154,7 @@ Para volver atrás:
 adb shell pm enable com.google.android.tvlauncher
 ```
 
-Hacelo solo cuando MiBoxOs ya funcione bien. Si algo sale mal, la TV puede arrancar en negro; se arregla con el comando de volver atrás.
+Hacelo solo cuando MiBoxOs ya funcione bien. Si MiBoxOs se cerrara varias veces seguidas, el botón Home pasa solo a un inicio de emergencia; desde una compu también se puede volver al launcher de Google con el comando de arriba.
 
 ## Compilar localmente
 
