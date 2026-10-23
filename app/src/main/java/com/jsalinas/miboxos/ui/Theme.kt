@@ -1,6 +1,10 @@
 package com.jsalinas.miboxos.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -15,18 +19,87 @@ val Inter = FontFamily(
     Font(R.font.inter_700, FontWeight.Bold),
 )
 
-object Palette {
-    val text = Color(0xFFF5F5F7)
-    val secondary = Color(0xFFA1A1A6)
-    val tileFallback = Color(0xFF2C2C2E)
-    val glass = Color(0xF21C1C1E)
-    val orb = listOf(Color(0xFF5E5CE6), Color(0xFFBF5AF2), Color(0xFFFF375F), Color(0xFF0A84FF))
+/**
+ * Colores por modo. `onWallpaper` es el texto que va directo sobre el fondo (título, reloj):
+ * sobre fotos espaciales siempre es blanco, aunque el modo sea claro.
+ */
+data class AppColors(
+    val dark: Boolean,
+    val text: Color,
+    val secondary: Color,
+    val onWallpaper: Color,
+    val panel: Color,
+    val control: Color,
+    val controlFocused: Color,
+    val onControlFocused: Color,
+    val tile: Color,
+    val accent: Color,
+)
+
+fun appColors(dark: Boolean, photoWallpaper: Boolean) = if (dark) {
+    AppColors(
+        dark = true,
+        text = Color(0xFFF5F5F7),
+        secondary = Color(0xFF98989D),
+        onWallpaper = Color(0xFFF5F5F7),
+        panel = Color(0xFF1C1C1E),
+        control = Color.White.copy(alpha = 0.10f),
+        controlFocused = Color(0xFFF5F5F7),
+        onControlFocused = Color(0xFF1D1D1F),
+        tile = Color(0xFF2C2C2E),
+        accent = Color(0xFF0A84FF),
+    )
+} else {
+    AppColors(
+        dark = false,
+        text = Color(0xFF1D1D1F),
+        secondary = Color(0xFF6E6E73),
+        onWallpaper = if (photoWallpaper) Color(0xFFF5F5F7) else Color(0xFF1D1D1F),
+        panel = Color(0xFFF5F5F7),
+        control = Color.Black.copy(alpha = 0.06f),
+        controlFocused = Color.White,
+        onControlFocused = Color(0xFF1D1D1F),
+        tile = Color(0xFFE5E5EA),
+        accent = Color(0xFF007AFF),
+    )
 }
 
+val LocalColors = staticCompositionLocalOf { appColors(dark = true, photoWallpaper = false) }
+
+val OrbColors = listOf(Color(0xFF5E5CE6), Color(0xFFBF5AF2), Color(0xFFFF375F), Color(0xFF0A84FF))
+
 object Type {
-    val hero = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 40.sp, color = Palette.text, letterSpacing = (-0.5).sp)
-    val title = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = Palette.text)
-    val body = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = Palette.text)
-    val caption = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Palette.secondary)
-    val clock = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 22.sp, color = Palette.text)
+    private val softShadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 2f), 12f)
+
+    val hero: TextStyle
+        @Composable get() = TextStyle(
+            fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 40.sp, letterSpacing = (-0.5).sp,
+            color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
+        )
+    val clock: TextStyle
+        @Composable get() = TextStyle(
+            fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 22.sp,
+            color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
+        )
+    val tileLabel: TextStyle
+        @Composable get() = TextStyle(
+            fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp,
+            color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
+        )
+    val section: TextStyle
+        @Composable get() = TextStyle(
+            fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.6.sp,
+            color = LocalColors.current.secondary,
+        )
+    val title: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = LocalColors.current.text)
+    val body: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 16.sp, color = LocalColors.current.text)
+    val caption: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = LocalColors.current.secondary)
+
+    // La sombra solo ayuda al texto claro sobre fotos; sobre el fondo claro minimalista ensucia
+    private fun shadowFor(color: Color) = if (color.luminanceIsHigh()) softShadow else null
+
+    private fun Color.luminanceIsHigh() = red + green + blue > 1.5f
 }

@@ -16,19 +16,19 @@ class AssistantReply(val transcript: String, val reply: String, val calls: List<
 /** Manda el audio a Gemini (generateContent) con las acciones disponibles como funciones. */
 class GeminiClient(private val apiKey: String, private val model: String) {
 
-    suspend fun interpret(wav: ByteArray, apps: List<TvApp>): AssistantReply = withContext(Dispatchers.IO) {
+    suspend fun interpret(wav: ByteArray, apps: List<TvApp>, hueContext: String?): AssistantReply = withContext(Dispatchers.IO) {
         val appList = apps.joinToString("\n") { "- ${it.label} (${it.packageName})" }
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(text(SYSTEM_PROMPT))))
             .put("contents", JSONArray().put(
                 JSONObject().put("role", "user").put("parts", JSONArray()
-                    .put(text("Apps instaladas:\n$appList"))
+                    .put(text("Apps instaladas:\n$appList" + hueContext?.let { "\n\n$it" }.orEmpty()))
                     .put(JSONObject().put("inlineData", JSONObject()
                         .put("mimeType", "audio/wav")
                         .put("data", Base64.encodeToString(wav, Base64.NO_WRAP))))
                 )
             ))
-            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", Tools.declarations())))
+            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functions(hueContext != null))))
             .put("toolConfig", JSONObject().put("functionCallingConfig", JSONObject().put("mode", "ANY")))
 
         val conn = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent")
@@ -53,6 +53,12 @@ class GeminiClient(private val apiKey: String, private val model: String) {
         } finally {
             conn.disconnect()
         }
+    }
+
+    private fun functions(withHue: Boolean): JSONArray {
+        val all = Tools.declarations()
+        if (withHue) Tools.hueDeclarations().let { hue -> for (i in 0 until hue.length()) all.put(hue.get(i)) }
+        return all
     }
 
     private fun parse(json: JSONObject): AssistantReply {
@@ -88,6 +94,7 @@ Escuchás el audio del usuario y controlás la TV llamando funciones.
 Reglas:
 - Siempre llamá a ${Tools.SHOW_REPLY} con la transcripción literal y una respuesta muy breve en español rioplatense.
 - Para abrir una app usá el nombre de paquete exacto de la lista de apps instaladas. Si no está instalada, decilo en la respuesta.
+- Para luces usá los nombres exactos de la lista de Hue. "Prendé las luces" sin aclarar = grupo "Todas".
 - Si piden buscar algo en YouTube, usá buscar_en_youtube en vez de solo abrir la app.
 - Si el pedido no se puede hacer con las funciones disponibles, explicalo en una frase sin inventar acciones.
 """.trimIndent()

@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import com.jsalinas.miboxos.Prefs
 import com.jsalinas.miboxos.apps.AppRepository
 import com.jsalinas.miboxos.apps.TvApp
+import com.jsalinas.miboxos.hue.HueController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,6 +26,7 @@ class AssistantController(
     private val context: Context,
     private val prefs: Prefs,
     private val repo: AppRepository,
+    private val hue: HueController,
     private val scope: CoroutineScope,
     private val apps: () -> List<TvApp>,
 ) {
@@ -73,8 +75,10 @@ class AssistantController(
                     return@launch
                 }
                 state = AssistantState.Thinking
-                val reply = GeminiClient(key, prefs.geminiModel).interpret(recording.wav, apps())
-                val errors = Tools.execute(context, repo, reply.calls)
+                // Si el bridge no responde, el asistente sigue andando sin luces
+                val hueContext = runCatching { hue.home()?.describe() }.getOrNull()
+                val reply = GeminiClient(key, prefs.geminiModel).interpret(recording.wav, apps(), hueContext)
+                val errors = Tools.execute(context, repo, hue, reply.calls)
                 val text = (listOf(reply.reply) + errors).filter { it.isNotBlank() }.joinToString("\n")
                 show(AssistantState.Done(reply.transcript, text.ifBlank { "Listo." }))
             } catch (e: kotlinx.coroutines.CancellationException) {

@@ -9,6 +9,8 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.KeyEvent
 import com.jsalinas.miboxos.apps.AppRepository
+import com.jsalinas.miboxos.hue.HueController
+import com.jsalinas.miboxos.hue.HueTarget
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -32,8 +34,19 @@ object Tools {
             "pasos" to JSONObject().put("type", "INTEGER").put("description", "Cuántos pasos subir o bajar (1-10).")))
         .put(fn("abrir_ajustes", "Abre los ajustes del sistema."))
 
+    /** Solo se declaran si hay un Hue Bridge vinculado. */
+    fun hueDeclarations(): JSONArray = JSONArray()
+        .put(fn("luces", "Controla luces Philips Hue: prender, apagar, brillo y color.",
+            "objetivo" to str("Nombre exacto de un grupo (habitación/zona, o 'Todas') o de una luz, de la lista de Hue."),
+            "encender" to JSONObject().put("type", "BOOLEAN").put("description", "true prende, false apaga. Omitir si solo cambia brillo/color."),
+            "brillo" to JSONObject().put("type", "INTEGER").put("description", "Brillo 1-100."),
+            "color" to str("Color en hex #RRGGBB (por ejemplo cálido #FFB46B, frío #CFE3FF).")))
+        .put(fn("escena_hue", "Activa una escena de Philips Hue.",
+            "escena" to str("Nombre exacto de la escena, de la lista de Hue."),
+            "grupo" to str("Habitación o zona de la escena, si hay varias con el mismo nombre.")))
+
     /** Ejecuta las llamadas; devuelve los errores para mostrarlos. */
-    fun execute(context: Context, repo: AppRepository, calls: List<ToolCall>): List<String> {
+    suspend fun execute(context: Context, repo: AppRepository, hue: HueController, calls: List<ToolCall>): List<String> {
         val errors = mutableListOf<String>()
         for (call in calls) {
             runCatching {
@@ -47,11 +60,41 @@ object Tools {
                     "volumen" -> volume(context, call.args.optString("accion"), call.args.optInt("pasos", 2))
                     "abrir_ajustes" -> context.startActivity(
                         Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    "luces" -> lights(hue, call.args)?.let { errors += it }
+                    "escena_hue" -> scene(hue, call.args)?.let { errors += it }
                     else -> errors += "Acción desconocida: ${call.name}"
                 }
             }.onFailure { errors += "Falló ${call.name}: ${it.message}" }
         }
         return errors
+    }
+
+    private suspend fun lights(hue: HueController, args: JSONObject): String? {
+        val client = hue.client() ?: return "Philips Hue no está vinculado"
+        val home = hue.home() ?: return "Philips Hue no está vinculado"
+        val name = args.optString("objetivo")
+        val target: HueTarget = (home.groups + home.lights).firstOrNull { it.name.equals(name, ignoreCase = true) }
+            ?: return "No encontré \"$name\" en Hue"
+        client.set(
+            target,
+            on = if (args.has("encender")) args.getBoolean("encender") else null,
+            brightness = if (args.has("brillo")) args.getInt("brillo") else null,
+            colorHex = args.optString("color").ifBlank { null },
+        )
+        return null
+    }
+
+    private suspend fun scene(hue: HueController, args: JSONObject): String? {
+        val client = hue.client() ?: return "Philips Hue no está vinculado"
+        val home = hue.home() ?: return "Philips Hue no está vinculado"
+        val name = args.optString("escena")
+        val group = args.optString("grupo")
+        val candidates = home.scenes.filter { it.name.equals(name, ignoreCase = true) }
+        val scene = candidates.firstOrNull { group.isNotBlank() && it.groupName.equals(group, ignoreCase = true) }
+            ?: candidates.firstOrNull()
+            ?: return "No encontré la escena \"$name\""
+        client.recall(scene)
+        return null
     }
 
     private fun searchYouTube(context: Context, query: String) {

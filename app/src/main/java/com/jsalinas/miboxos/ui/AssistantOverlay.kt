@@ -48,7 +48,7 @@ fun AssistantOverlay(state: AssistantState, level: Float, modifier: Modifier = M
                 modifier = Modifier
                     .padding(bottom = 40.dp)
                     .widthIn(min = 360.dp, max = 720.dp)
-                    .background(Palette.glass, RoundedCornerShape(28.dp))
+                    .background(LocalColors.current.panel, RoundedCornerShape(28.dp))
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
@@ -85,7 +85,7 @@ fun Orb(active: Boolean, level: Float, size: Dp, modifier: Modifier = Modifier) 
 
     Canvas(modifier.size(size)) {
         val r = this.size.minDimension / 2
-        Palette.orb.forEachIndexed { i, color ->
+        OrbColors.forEachIndexed { i, color ->
             val a = angle * (if (i % 2 == 0) 1f else -1.3f) + i * 1.57f
             val c = center + Offset(cos(a), sin(a)) * r * 0.28f * pulse
             drawCircle(

@@ -1,0 +1,91 @@
+package com.jsalinas.miboxos.hue
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.jsalinas.miboxos.Prefs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+sealed interface HueStatus {
+    data object NotPaired : HueStatus
+    data object Searching : HueStatus
+    data class PressButton(val secondsLeft: Int) : HueStatus
+    data class Paired(val summary: String) : HueStatus
+    data class Failed(val message: String) : HueStatus
+}
+
+/** Vinculación con el bridge y caché de habitaciones/luces/escenas para el asistente. */
+class HueController(private val prefs: Prefs, private val scope: CoroutineScope) {
+    var status: HueStatus by mutableStateOf(
+        if (prefs.hueAppKey.isNotEmpty()) HueStatus.Paired("Vinculado") else HueStatus.NotPaired
+    )
+        private set
+
+    private var pairing: Job? = null
+    private var cached: HueHome? = null
+    private var cachedAt = 0L
+
+    val isPaired get() = prefs.hueAppKey.isNotEmpty()
+
+    fun client(): HueClient? =
+        if (isPaired) HueClient(BridgeInfo(prefs.hueBridgeIp, prefs.hueBridgeId), prefs.hueAppKey) else null
+
+    /** Busca el bridge y espera hasta 30 s a que se apriete su botón. */
+    fun pair() {
+        pairing?.cancel()
+        pairing = scope.launch {
+            status = HueStatus.Searching
+            val bridge = discoverBridge()
+            if (bridge == null) {
+                status = HueStatus.Failed("No encontré el bridge. ¿Está en el mismo WiFi y con internet?")
+                return@launch
+            }
+            val client = HueClient(bridge)
+            for (left in 30 downTo 1 step 2) {
+                status = HueStatus.PressButton(left)
+                val key = runCatching { client.pair() }.getOrElse {
+                    status = HueStatus.Failed(it.message ?: "Error al vincular")
+                    return@launch
+                }
+                if (key != null) {
+                    prefs.hueBridgeIp = bridge.ip
+                    prefs.hueBridgeId = bridge.id
+                    prefs.hueAppKey = key
+                    refreshSummary()
+                    return@launch
+                }
+                delay(2_000)
+            }
+            status = HueStatus.Failed("No se apretó el botón a tiempo. Probá de nuevo.")
+        }
+    }
+
+    fun refreshSummary() {
+        scope.launch {
+            val home = runCatching { home(force = true) }.getOrElse {
+                status = HueStatus.Failed("Vinculado, pero no responde: ${it.message}")
+                return@launch
+            }
+            status = home?.let {
+                HueStatus.Paired("${it.lights.size} luces · ${it.groups.size - 1} habitaciones/zonas · ${it.scenes.size} escenas")
+            } ?: HueStatus.NotPaired
+        }
+    }
+
+    suspend fun home(force: Boolean = false): HueHome? {
+        val client = client() ?: return null
+        val now = System.currentTimeMillis()
+        if (force || cached == null || now - cachedAt > CACHE_MS) {
+            cached = client.home()
+            cachedAt = now
+        }
+        return cached
+    }
+
+    private companion object {
+        const val CACHE_MS = 5 * 60_000L
+    }
+}
