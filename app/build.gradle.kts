@@ -23,25 +23,23 @@ android {
         buildConfigField("String", "DEFAULT_GEMINI_KEY", "\"${System.getenv("MIBOX_GEMINI_KEY").orEmpty()}\"")
     }
 
-    // Clave fija de MiBoxOs: sin ella, cada versión tendría otra firma y Android no la instalaría
-    // encima de la anterior (ni por ADB ni con la actualización automática). Viene de variables de
-    // entorno: en GitHub, de los secrets del repo; nunca se sube al repo.
-    val releaseKeystore = System.getenv("MIBOX_KEYSTORE_FILE")
+    // Clave fija de MiBoxOs (signing/miboxos-release.jks). Está en el repo a propósito, por decisión del
+    // dueño: así GitHub y cualquier compilación firman igual sin secrets, y Android acepta cada versión
+    // nueva encima de la anterior. Riesgo asumido: otros podrían firmar un APK "como" MiBoxOs, pero la
+    // Mi Box solo se actualiza desde las versiones publicadas en este repo.
     signingConfigs {
-        if (releaseKeystore != null) {
-            create("release") {
-                storeFile = file(releaseKeystore)
-                storePassword = System.getenv("MIBOX_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("MIBOX_KEY_ALIAS") ?: "miboxos"
-                keyPassword = System.getenv("MIBOX_KEYSTORE_PASSWORD")
-            }
+        create("release") {
+            storeFile = rootProject.file("signing/miboxos-release.jks")
+            storePassword = "cRHRFVWPzufL4k0OTKMPKRksioMU"
+            keyAlias = "miboxos"
+            keyPassword = "cRHRFVWPzufL4k0OTKMPKRksioMU"
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

@@ -1,7 +1,7 @@
 name: Publicar versión
 
 # Publica sola cada versión nueva: en cada push, si la versionName de app/build.gradle.kts todavía
-# no existe como versión de GitHub, compila el APK firmado con la clave de MiBoxOs, corre los tests
+# no existe como versión de GitHub, compila el APK firmado con la clave de MiBoxOs (signing/), corre los tests
 # y la publica. La Mi Box la encuentra en Ajustes → Acerca de → Buscar actualización.
 # También se puede lanzar a mano desde la pestaña Actions.
 on:
@@ -40,32 +40,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Clave de firma
-        if: steps.version.outputs.publish == 'true'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.MIBOX_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.MIBOX_KEYSTORE_PASSWORD }}
-        run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::Falta el secret MIBOX_KEYSTORE_BASE64 (ver README → Actualizaciones y firma)"; exit 1
-          fi
-          # Tolera saltos de línea o espacios que se cuelan al pegar el secret
-          CLEAN=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t')
-          if ! printf '%s' "$CLEAN" | base64 -d > "$RUNNER_TEMP/miboxos.jks" 2>/dev/null; then
-            # Diagnóstico sin revelar la clave: largo, comienzo (siempre "MIIQ" en estas claves) y caracteres ajenos a base64
-            BAD=$(printf '%s' "$CLEAN" | tr -d 'A-Za-z0-9+/=' | wc -c)
-            echo "Largo: ${#CLEAN} (esperado ~5732) | empieza con: ${CLEAN:0:4} (esperado MIIQ) | caracteres no base64: $BAD"
-            echo "::error::MIBOX_KEYSTORE_BASE64 no es base64 válido: pegá el contenido completo de miboxos-release.jks.base64"; exit 1
-          fi
-          echo "Clave: ${#CLEAN} caracteres, contraseña: ${#KEYSTORE_PASSWORD} caracteres (esperado 28)"
-          if ! keytool -list -keystore "$RUNNER_TEMP/miboxos.jks" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
-            echo "::error::La clave no abre con MIBOX_KEYSTORE_PASSWORD: revisá que sea el contenido de password.txt (sin espacios)"; exit 1
-          fi
       - name: Compilar y testear
         if: steps.version.outputs.publish == 'true'
-        env:
-          MIBOX_KEYSTORE_FILE: ${{ runner.temp }}/miboxos.jks
-          MIBOX_KEYSTORE_PASSWORD: ${{ secrets.MIBOX_KEYSTORE_PASSWORD }}
         run: ./gradlew testDebugUnitTest assembleRelease --no-daemon
       - name: Publicar
         if: steps.version.outputs.publish == 'true'

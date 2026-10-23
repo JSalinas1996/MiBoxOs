@@ -110,14 +110,9 @@ Usa la acción de suspender que Android 9 le da al servicio de accesibilidad, as
 
 ## Actualizaciones y firma
 
-Todas las versiones se firman con la clave de MiBoxOs (`miboxos-release.jks`), que **no** está en el repo. Android solo instala una versión nueva encima de la anterior si tiene la misma firma, así que guardá esa clave: si se pierde, hay que desinstalar y reinstalar.
+Todas las versiones se firman con la clave de MiBoxOs, que está en `signing/` (decisión del dueño del repo, para no depender de secrets). Android solo instala una versión nueva encima de la anterior si tiene la misma firma.
 
-Para que GitHub compile y publique versiones firmadas, cargá dos secrets en el repo (Settings → Secrets and variables → Actions → New repository secret):
-
-- `MIBOX_KEYSTORE_BASE64`: el contenido de `miboxos-release.jks.base64`
-- `MIBOX_KEYSTORE_PASSWORD`: la contraseña
-
-Publicar una versión: subir `versionName` (y `versionCode`) en `app/build.gradle.kts` y pushear. El workflow "Publicar versión" ve que esa versión no existe en GitHub, compila con la clave, corre los tests y la publica; la Mi Box la ofrece en Ajustes → Acerca de. La primera vez Android pide permitir que MiBoxOs instale apps.
+Publicar una versión: subir `versionName` (y `versionCode`) en `app/build.gradle.kts` y pushear. El workflow "Publicar versión" ve que esa versión no existe en GitHub, compila, corre los tests y la publica; la Mi Box la ofrece en Ajustes → Acerca de. La primera vez Android pide permitir que MiBoxOs instale apps.
 
 ## Modo reposo
 
