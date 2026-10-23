@@ -1,10 +1,16 @@
 name: Publicar versión
 
-# Al crear una etiqueta vX.Y.Z se compila el APK firmado con la clave de MiBoxOs y se publica
-# como versión de GitHub; la app la encuentra sola (Ajustes → Acerca de → Buscar actualización).
+# Al crear una etiqueta vX.Y.Z (o lanzarlo a mano con la versión) se compila el APK firmado con la
+# clave de MiBoxOs y se publica como versión de GitHub; la app la encuentra sola
+# (Ajustes → Acerca de → Buscar actualización).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión a publicar, por ejemplo 0.7.0"
+        required: true
 
 permissions:
   contents: write
@@ -33,7 +39,10 @@ jobs:
         run: ./gradlew testDebugUnitTest assembleRelease --no-daemon
       - name: Publicar
         run: |
-          cp app/build/outputs/apk/release/app-release.apk "MiBoxOs-${GITHUB_REF_NAME}.apk"
-          gh release create "$GITHUB_REF_NAME" "MiBoxOs-${GITHUB_REF_NAME}.apk" --title "MiBoxOs $GITHUB_REF_NAME" --generate-notes
+          TAG="${INPUT_VERSION:+v$INPUT_VERSION}"
+          TAG="${TAG:-$GITHUB_REF_NAME}"
+          cp app/build/outputs/apk/release/app-release.apk "MiBoxOs-${TAG}.apk"
+          gh release create "$TAG" "MiBoxOs-${TAG}.apk" --target "$GITHUB_SHA" --title "MiBoxOs $TAG" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
