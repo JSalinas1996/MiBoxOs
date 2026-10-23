@@ -48,5 +48,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Modo reposo: protector de pantalla del sistema -->
+        <service
+            android:name=".screensaver.ImageDream"
+            android:exported="true"
+            android:label="MiBoxOs"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data android:name="android.service.dream" android:resource="@xml/dream" />
+        </service>
     </application>
 </manifest>

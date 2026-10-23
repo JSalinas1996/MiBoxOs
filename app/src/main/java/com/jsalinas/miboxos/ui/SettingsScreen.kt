@@ -68,6 +68,7 @@ enum class SettingsPage(val title: String) {
     ROOT("Ajustes"),
     APPEARANCE("Apariencia"),
     WALLPAPER("Fondo"),
+    SCREENSAVER("Modo reposo"),
     HUE("Philips Hue"),
     ASSISTANT("Asistente"),
     ABOUT("Acerca de"),
@@ -84,6 +85,9 @@ class SettingsState(
     val assistantReady: Boolean,
     val model: String,
     val version: String,
+    val screensaverSeconds: Int,
+    val screensaverOnlyMine: Boolean,
+    val hasOwnPhotos: Boolean,
 )
 
 class SettingsActions(
@@ -92,6 +96,10 @@ class SettingsActions(
     val onWallpaper: (String) -> Unit,
     val onHuePair: () -> Unit,
     val onSystemSettings: () -> Unit,
+    val onScreensaverSeconds: (Int) -> Unit = {},
+    val onScreensaverOnlyMine: (Boolean) -> Unit = {},
+    val onScreensaverPreview: () -> Unit = {},
+    val onScreensaverSystem: () -> Unit = {},
 )
 
 /**
@@ -130,6 +138,7 @@ fun SettingsScreen(visible: Boolean, page: SettingsPage, state: SettingsState, a
                         SettingsPage.ROOT -> RootPage(state, actions, rootRows) { illustration = it }
                         SettingsPage.APPEARANCE -> AppearancePage(state, actions, firstRow) { illustration = it }
                         SettingsPage.WALLPAPER -> WallpaperPage(state, actions, firstRow) { illustration = it }
+                        SettingsPage.SCREENSAVER -> ScreensaverPage(state, actions, firstRow) { illustration = it }
                         SettingsPage.HUE -> HuePage(state, actions, firstRow) { illustration = it }
                         SettingsPage.ASSISTANT -> AssistantPage(state, firstRow) { illustration = it }
                         SettingsPage.ABOUT -> AboutPage(state, firstRow) { illustration = it }
@@ -166,6 +175,8 @@ private fun RootPage(state: SettingsState, actions: SettingsActions, rows: Map<S
         onFocus = { onIllustration("appearance") }) { actions.onNavigate(SettingsPage.APPEARANCE) }
     SettingsRow("Fondo", wallpaperName, chevron = true, focus = rows[SettingsPage.WALLPAPER],
         onFocus = { onIllustration("wallpaper:${state.selectedWallpaper}") }) { actions.onNavigate(SettingsPage.WALLPAPER) }
+    SettingsRow("Modo reposo", "Cada ${secondsLabel(state.screensaverSeconds)}", chevron = true, focus = rows[SettingsPage.SCREENSAVER],
+        onFocus = { onIllustration("screensaver") }) { actions.onNavigate(SettingsPage.SCREENSAVER) }
     SettingsRow("Philips Hue", hueValue, chevron = true, focus = rows[SettingsPage.HUE],
         onFocus = { onIllustration("hue") }) { actions.onNavigate(SettingsPage.HUE) }
     SettingsRow("Asistente", if (state.assistantReady) "Listo" else "Falta API key", chevron = true, focus = rows[SettingsPage.ASSISTANT],
@@ -200,6 +211,31 @@ private fun WallpaperPage(state: SettingsState, actions: SettingsActions, first:
         }
     }
     Footer("Para usar tus fotos, copialas a ${state.userFolder}.")
+}
+
+@Composable
+private fun ScreensaverPage(state: SettingsState, actions: SettingsActions, first: FocusRequester, onIllustration: (String) -> Unit) {
+    LaunchedEffect(Unit) { onIllustration("screensaver") }
+    SettingsRow("Probar ahora", null, focus = first, onClick = actions.onScreensaverPreview)
+    SectionTitle("IMÁGENES")
+    SettingsRow("Todas", null, checked = !state.screensaverOnlyMine || !state.hasOwnPhotos) { actions.onScreensaverOnlyMine(false) }
+    SettingsRow("Solo mis fotos", if (state.hasOwnPhotos) null else "No hay fotos propias", checked = state.screensaverOnlyMine && state.hasOwnPhotos) {
+        actions.onScreensaverOnlyMine(true)
+    }
+    SectionTitle("CAMBIAR CADA")
+    listOf(15, 30, 60).forEach { seconds ->
+        SettingsRow(secondsLabel(seconds), null, checked = state.screensaverSeconds == seconds) { actions.onScreensaverSeconds(seconds) }
+    }
+    SectionGap()
+    SettingsRow("Activar en Android TV", null, chevron = true, onClick = actions.onScreensaverSystem)
+    Footer("Android TV lo arranca solo después del tiempo de inactividad, también dentro de otras apps. En Protector de pantalla elegí \"MiBoxOs\". Cualquier botón del control lo cierra.")
+}
+
+private fun secondsLabel(seconds: Int) = if (seconds >= 60) "${seconds / 60} min" else "$seconds s"
+
+@Composable
+private fun SectionTitle(text: String) {
+    BasicText(text, style = Type.section, modifier = Modifier.padding(start = 24.dp, top = 14.dp, bottom = 2.dp))
 }
 
 @Composable
@@ -337,6 +373,7 @@ private fun Illustration(id: String, state: SettingsState) {
                     if (thumb != null) Image(thumb, null, mod, contentScale = ContentScale.Crop, filterQuality = FilterQuality.High)
                     else MinimalSwatch(mod)
                 }
+                current == "screensaver" -> ScreensaverArt(state)
                 current == "appearance" -> AppearanceArt()
                 current == "hue" -> BulbArt(on = state.hue is HueStatus.Paired)
                 current == "assistant" -> Orb(active = true, level = 0.25f, size = 210.dp)
@@ -344,6 +381,25 @@ private fun Illustration(id: String, state: SettingsState) {
                 else -> GearArt()
             }
         }
+    }
+}
+
+/** Tres fondos apilados, como la ilustración de Protector de pantalla en tvOS. */
+@Composable
+private fun ScreensaverArt(state: SettingsState) {
+    val images = listOf("aurora", "nebulosa_carina", "tierra_desde_la_luna").mapNotNull { state.thumbs[it] }
+    Box(contentAlignment = Alignment.Center) {
+        images.forEachIndexed { i, img ->
+            val offset = (i - 1) * 26
+            Image(
+                img, null,
+                Modifier.padding(start = (40 + offset).coerceAtLeast(0).dp, top = (40 + offset).coerceAtLeast(0).dp)
+                    .width(260.dp).aspectRatio(16f / 9f)
+                    .shadow(20.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)),
+                contentScale = ContentScale.Crop, filterQuality = FilterQuality.High,
+            )
+        }
+        if (images.isEmpty()) GearArt()
     }
 }
 

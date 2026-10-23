@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.semantics.SemanticsActions
@@ -165,6 +166,38 @@ class MainActivityTest {
         focused("Ajustes")
         key(Key.DirectionCenter)
         waitText("Philips Hue")
+    }
+
+    @Test fun modoReposo_probarElegirIntervaloYCualquierBotonLoCierra() {
+        launch()
+        selectDescription("Ajustes")
+        waitText("Modo reposo")
+        select("Modo reposo")
+        waitText("Probar ahora")
+        select("1 min")
+        assertEquals(60, prefs.screensaverSeconds)
+        select("Probar ahora")
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("screensaver").assertExists() }.isSuccess }
+        // Cualquier botón lo cierra y no hace nada más: seguimos en la página de Modo reposo
+        activityKey(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitForIdle()
+        compose.onNodeWithTag("screensaver").assertDoesNotExist()
+        compose.onNodeWithText("Probar ahora").assertExists()
+        assertEquals(60, prefs.screensaverSeconds)
+    }
+
+    @Test fun modoReposo_atrasTambienLoCierraSinSalirDeAjustes() {
+        launch()
+        selectDescription("Ajustes")
+        waitText("Modo reposo")
+        select("Modo reposo")
+        waitText("Probar ahora")
+        select("Probar ahora")
+        compose.waitUntil(5_000) { runCatching { compose.onNodeWithTag("screensaver").assertExists() }.isSuccess }
+        activityKey(KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithTag("screensaver").assertDoesNotExist()
+        compose.onNodeWithText("Probar ahora").assertExists()
     }
 
     @Test fun ajustes_recuerdaModoYFondoAlReiniciar() {

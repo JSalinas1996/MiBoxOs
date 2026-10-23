@@ -15,8 +15,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.lifecycleScope
@@ -26,6 +30,8 @@ import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantController
 import com.jsalinas.miboxos.assistant.AssistantState
 import com.jsalinas.miboxos.hue.HueController
+import com.jsalinas.miboxos.screensaver.Screensaver
+import com.jsalinas.miboxos.screensaver.screensaverImages
 import com.jsalinas.miboxos.ui.AssistantOverlay
 import com.jsalinas.miboxos.ui.HomeScreen
 import com.jsalinas.miboxos.ui.LocalColors
@@ -53,6 +59,9 @@ class MainActivity : ComponentActivity() {
     private var wallpaperFrosted by mutableStateOf<ImageBitmap?>(null)
     private var settingsOpen by mutableStateOf(false)
     private var settingsPage by mutableStateOf(SettingsPage.ROOT)
+    private var screensaverPreview by mutableStateOf(false)
+    private var screensaverSeconds by mutableStateOf(20)
+    private var screensaverOnlyMine by mutableStateOf(false)
     private val systemTiles by lazy { SystemTiles.assistant() to SystemTiles.settings() }
     private val firstTileFocus = FocusRequester()
 
@@ -77,6 +86,8 @@ class MainActivity : ComponentActivity() {
         assistant = AssistantController(this, prefs, repo, hue, lifecycleScope) { apps }
         wallpapers = Wallpapers(this)
         darkMode = prefs.darkMode
+        screensaverSeconds = prefs.screensaverSeconds
+        screensaverOnlyMine = prefs.screensaverOnlyMine
         applyConfigExtras(intent)
         selectWallpaper(prefs.wallpaper)
         if (hue.isPaired) hue.refreshSummary()
@@ -94,7 +105,14 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             CompositionLocalProvider(LocalColors provides appColors(darkMode, photoWallpaper = wallpaper.source != null)) {
-                Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier.fillMaxSize().onPreviewKeyEvent { event ->
+                        // Durante la vista previa del modo reposo, cualquier botón lo cierra (y no hace nada más)
+                        if (!screensaverPreview) return@onPreviewKeyEvent false
+                        if (event.type == KeyEventType.KeyUp) screensaverPreview = false
+                        true
+                    },
+                ) {
                     HomeScreen(
                         apps = homeApps(),
                         wallpaper = wallpaperImage,
@@ -116,6 +134,9 @@ class MainActivity : ComponentActivity() {
                             assistantReady = prefs.geminiApiKey.isNotBlank(),
                             model = prefs.geminiModel,
                             version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty(),
+                            screensaverSeconds = screensaverSeconds,
+                            screensaverOnlyMine = screensaverOnlyMine,
+                            hasOwnPhotos = wallpaperList.any { it.source is Wallpaper.UserFile },
                         ),
                         actions = SettingsActions(
                             onNavigate = { settingsPage = it },
@@ -123,9 +144,17 @@ class MainActivity : ComponentActivity() {
                             onWallpaper = ::selectWallpaper,
                             onHuePair = hue::pair,
                             onSystemSettings = { startActivity(Intent(Settings.ACTION_SETTINGS)) },
+                            onScreensaverSeconds = { screensaverSeconds = it; prefs.screensaverSeconds = it },
+                            onScreensaverOnlyMine = { screensaverOnlyMine = it; prefs.screensaverOnlyMine = it },
+                            onScreensaverPreview = { screensaverPreview = true },
+                            onScreensaverSystem = ::openDreamSettings,
                         ),
                     )
                     AssistantOverlay(assistant.state, assistant.level)
+                    if (screensaverPreview) {
+                        val images = remember { screensaverImages(wallpapers, prefs) }
+                        Screensaver(images, wallpapers::loadFull, screensaverSeconds)
+                    }
                 }
             }
         }
@@ -144,6 +173,7 @@ class MainActivity : ComponentActivity() {
         // Botón Home estando ya en el inicio: volver a la primera app
         if (intent.hasCategory(Intent.CATEGORY_HOME)) {
             assistant.dismiss()
+            screensaverPreview = false
             closeSettings()
             runCatching { firstTileFocus.requestFocus() }
         }
@@ -200,6 +230,12 @@ class MainActivity : ComponentActivity() {
 
     private fun closeSettings() {
         settingsOpen = false
+    }
+
+    /** Pantalla de Protector de pantalla de Android; si este Android TV no la expone, Ajustes generales. */
+    private fun openDreamSettings() {
+        val dream = Intent(Settings.ACTION_DREAM_SETTINGS)
+        startActivity(if (dream.resolveActivity(packageManager) != null) dream else Intent(Settings.ACTION_SETTINGS))
     }
 
     private fun selectWallpaper(id: String) {

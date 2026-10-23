@@ -84,6 +84,15 @@ class ScreenshotTest {
 
     @Test fun settingsLight() = shot("settingsLight", dark = false, settings = SettingsPage.APPEARANCE)
 
+    @Test fun settingsScreensaver() = shot("settingsScreensaver", dark = true, settings = SettingsPage.SCREENSAVER)
+
+    @Test fun screensaver() {
+        val images = listOf(Wallpaper("saturno", "Saturno", Wallpaper.Asset("", "")))
+        compose.setContent { com.jsalinas.miboxos.screensaver.Screensaver(images, { asset("saturno") }, 20) }
+        compose.mainClock.advanceTimeBy(3_000)
+        compose.onRoot().captureRoboImage("../docs/preview/screensaver.png")
+    }
+
     @Test fun settingsHue() = shot("settingsHue", dark = true, settings = SettingsPage.HUE)
 
     @Test fun assistantDone() = shot(
@@ -134,7 +143,10 @@ class ScreenshotTest {
                             hue = HueStatus.Paired("12 luces · 4 grupos · 9 escenas"),
                             assistantReady = true,
                             model = "gemini-3.8-flash",
-                            version = "0.4.0",
+                            version = "0.5.0",
+                            screensaverSeconds = 20,
+                            screensaverOnlyMine = false,
+                            hasOwnPhotos = false,
                         ),
                         actions = SettingsActions({}, {}, {}, {}, {}),
                     )

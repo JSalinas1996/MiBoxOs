@@ -40,6 +40,16 @@ class Prefs(context: Context) {
         get() = config.getString(KEY_HUE_KEY, "").orEmpty()
         set(value) = config.edit().putString(KEY_HUE_KEY, value).apply()
 
+    /** Segundos que se muestra cada imagen en el modo reposo. */
+    var screensaverSeconds: Int
+        get() = config.getInt(KEY_SAVER_SECONDS, 20)
+        set(value) = config.edit().putInt(KEY_SAVER_SECONDS, value).apply()
+
+    /** Modo reposo solo con fotos propias (si hay); si no, todas las imágenes. */
+    var screensaverOnlyMine: Boolean
+        get() = config.getBoolean(KEY_SAVER_MINE, false)
+        set(value) = config.edit().putBoolean(KEY_SAVER_MINE, value).apply()
+
     var askedStoragePermission: Boolean
         get() = config.getBoolean(KEY_ASKED_STORAGE, false)
         set(value) = config.edit().putBoolean(KEY_ASKED_STORAGE, value).apply()
@@ -53,6 +63,8 @@ class Prefs(context: Context) {
     companion object {
         const val KEY_API = "gemini_api_key"
         const val KEY_MODEL = "gemini_model"
+        private const val KEY_SAVER_SECONDS = "screensaver_seconds"
+        private const val KEY_SAVER_MINE = "screensaver_only_mine"
         private const val KEY_ASKED_STORAGE = "asked_storage"
         private const val KEY_DARK = "dark_mode"
         private const val KEY_WALLPAPER = "wallpaper"

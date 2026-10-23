@@ -4,6 +4,7 @@ Launcher con estética tipo Apple TV (tvOS) y asistente de voz con Gemini para l
 
 - **Inicio estilo tvOS:** Top Shelf con el fondo elegido, íconos con el logo de cada app sobre un material desenfocado, brillo y sombra al enfocar, nombre solo bajo el ícono enfocado y orden por uso.
 - **Ajustes (app en la grilla):** pantalla completa como Ajustes de tvOS, con apariencia clara/oscura, fondos (Minimal, Tierra, Luna, Saturno, nebulosa… de NASA, o tus fotos) y vinculación con Philips Hue.
+- **Modo reposo (como los Aerials de Apple TV):** las imágenes pasan con zoom y desplazamiento lento, fundido entre una y otra, hora y nombre de la imagen. Es el protector de pantalla del sistema: arranca solo tras la inactividad, también dentro de otras apps.
 - **Asistente (app en la grilla, estilo Siri):** también con la tecla Buscar/Menú si el control la manda. Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, luces y escenas de Hue, abrir ajustes.
 
 ## Vista previa
@@ -17,12 +18,14 @@ Render real del código con apps ficticias (logos genéricos). El diseño sigue 
 | ![](docs/preview/settingsRoot.png) | ![](docs/preview/settingsWallpaper.png) |
 | **Modo claro** | **Asistente** |
 | ![](docs/preview/homeLight.png) | ![](docs/preview/assistantDone.png) |
+| **Modo reposo** | **Ajustes del modo reposo** |
+| ![](docs/preview/screensaver.png) | ![](docs/preview/settingsScreensaver.png) |
 
 Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 ## Tests
 
-`./gradlew testDebugUnitTest` corre 78 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+`./gradlew testDebugUnitTest` corre 87 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
 
 - **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
 - **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.
@@ -62,6 +65,19 @@ adb push mi-foto.jpg /sdcard/Pictures/MiBoxOs/
 ```
 
 La primera vez que abras Ajustes la app pide permiso para leer archivos.
+
+## Modo reposo
+
+En Ajustes → Modo reposo podés probarlo, elegir las imágenes (todas o solo tus fotos) y cada cuánto cambian. Para que Android TV lo use como protector de pantalla:
+
+- Desde la TV: Ajustes → Modo reposo → **Activar en Android TV** → Protector de pantalla → MiBoxOs.
+- O por ADB:
+  ```
+  adb shell settings put secure screensaver_components com.jsalinas.miboxos/.screensaver.ImageDream
+  adb shell settings put secure screensaver_enabled 1
+  ```
+
+El tiempo de inactividad antes de que arranque se configura en los ajustes de Android TV (Protector de pantalla → Cuándo empezar).
 
 ## Philips Hue
 
