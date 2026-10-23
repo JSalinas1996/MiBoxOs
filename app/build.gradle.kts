@@ -15,6 +15,7 @@ android {
         // Mi Box S (1.ª gen) corre Android TV 9 = API 28
         minSdk = 28
         targetSdk = 34
+        // Subir versionName publica una versión nueva en GitHub (workflow "Publicar versión")
         versionCode = 7
         versionName = "0.7.0"
     }

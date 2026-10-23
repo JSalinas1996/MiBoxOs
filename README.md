@@ -117,7 +117,7 @@ Para que GitHub compile y publique versiones firmadas, cargá dos secrets en el 
 - `MIBOX_KEYSTORE_BASE64`: el contenido de `miboxos-release.jks.base64`
 - `MIBOX_KEYSTORE_PASSWORD`: la contraseña
 
-Publicar una versión: crear la etiqueta `vX.Y.Z` (por ejemplo `git tag v0.7.0 && git push origin v0.7.0`). El workflow "Publicar versión" compila, corre los tests y la publica; la Mi Box la ofrece en Ajustes → Acerca de. La primera vez Android pide permitir que MiBoxOs instale apps.
+Publicar una versión: subir `versionName` (y `versionCode`) en `app/build.gradle.kts` y pushear. El workflow "Publicar versión" ve que esa versión no existe en GitHub, compila con la clave, corre los tests y la publica; la Mi Box la ofrece en Ajustes → Acerca de. La primera vez Android pide permitir que MiBoxOs instale apps.
 
 ## Modo reposo
 
