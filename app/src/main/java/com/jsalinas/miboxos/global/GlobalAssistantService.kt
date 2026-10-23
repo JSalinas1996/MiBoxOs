@@ -83,6 +83,17 @@ class GlobalAssistantService : AccessibilityService() {
             onVoiceKey(event)
             return true
         }
+        // Botón de apps del control Xiaomi (KEY_APPSELECT → APP_SWITCH): el sistema lo manda al inicio de
+        // Xiaomi antes de que llegue a cualquier app, así que se toma acá para el Centro de control
+        if (event.keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                if (cc.visible) cc.close() else {
+                    app.assistant.dismiss()
+                    cc.open()
+                }
+            }
+            return true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
             when {
                 app.assistant.state != AssistantState.Idle -> {

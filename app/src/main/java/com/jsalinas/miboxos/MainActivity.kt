@@ -243,8 +243,8 @@ class MainActivity : ComponentActivity() {
             if (event.repeatCount == 0) onAssistantKey()
             return true
         }
-        // Menú abre/cierra el Centro de control (con el servicio global también: manteniendo el botón de voz)
-        if (keyCode == KeyEvent.KEYCODE_MENU) {
+        // Menú o el botón de apps abren/cierran el Centro de control (con el servicio global también: manteniendo el botón de voz)
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
             if (event.repeatCount == 0) {
                 if (controlCenter.visible) controlCenter.close() else controlCenter.open()
             }

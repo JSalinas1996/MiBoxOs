@@ -21,7 +21,7 @@ class Prefs(context: Context) {
 
     /** Id de fondo: "minimal", un asset ("tierra") o "file:<ruta>" para imágenes propias. */
     var wallpaper: String
-        get() = config.getString(KEY_WALLPAPER, "minimal").orEmpty()
+        get() = config.getString(KEY_WALLPAPER, "tierra").orEmpty()
         set(value) = config.edit().putString(KEY_WALLPAPER, value).apply()
 
     var hueBridgeIp: String

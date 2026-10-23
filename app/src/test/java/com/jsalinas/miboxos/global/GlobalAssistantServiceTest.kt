@@ -99,6 +99,13 @@ class GlobalAssistantServiceTest {
         assertEquals(AssistantState.Idle, app.assistant.state)
     }
 
+    @Test fun `el boton de apps del control abre y cierra el Centro de control sin llegar al sistema`() {
+        assertTrue(press(KeyEvent.KEYCODE_APP_SWITCH))
+        assertTrue(app.controlCenter.visible)
+        assertTrue(press(KeyEvent.KEYCODE_APP_SWITCH))
+        assertFalse(app.controlCenter.visible)
+    }
+
     @Test fun `atras cierra el Centro de control y no le llega a la app de abajo`() {
         app.controlCenter.open()
         assertTrue(press(KeyEvent.KEYCODE_BACK))
