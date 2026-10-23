@@ -70,3 +70,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk "MiBoxOs-${TAG}.apk"
           gh release create "$TAG" "MiBoxOs-${TAG}.apk" --target "$GITHUB_SHA" --title "MiBoxOs $TAG" --generate-notes
+          # Resumen con el enlace directo al APK en la página de la corrida
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/MiBoxOs-${TAG}.apk"
+          echo "### MiBoxOs $TAG publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK: $URL" >> "$GITHUB_STEP_SUMMARY"
