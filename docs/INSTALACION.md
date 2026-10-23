@@ -1,95 +1,58 @@
-# Instalar y probar MiBoxOs en la Mi Box S
+# Instalar MiBoxOs en la Mi Box S (desde una Mac)
 
-Tiempo: unos 20 minutos. Necesitás la compu en el mismo WiFi que la Mi Box.
+Son 3 pasos. Tarda unos 10 minutos. La Mac y la Mi Box tienen que estar en el mismo WiFi.
 
-## 1. Antes (en la compu)
+## Paso 1: en la Mac
 
-1. **API key de Gemini:** <https://aistudio.google.com/apikey> → "Create API key". Guardala.
-2. **APK:** bajá `MiBoxOs-v0.7.0.apk` de <https://github.com/JSalinas1996/MiBoxOs/releases/latest> a tu carpeta **Descargas**.
-3. **ADB** (terminal, en Descargas):
+Descargá el archivo **`MiBoxOs-0.7.0-personal.apk`** que te mandó Claude (trae tu key de Gemini) y dejalo en **Descargas**.
 
-   *Mac*
+## Paso 2: en la TV, con el control
+
+1. **Ajustes** (engranaje) → **Preferencias del dispositivo** → **Información**.
+2. Bajá hasta **Compilación** y apretá **OK 7 veces seguidas** hasta que diga que ya sos desarrollador.
+3. Volvé atrás → entrá a **Opciones de desarrollador** → activá **Depuración USB** → Aceptar.
+4. **Ajustes** → **Red e Internet** → tocá tu WiFi → anotá la **dirección IP** (por ejemplo `192.168.0.23`).
+
+## Paso 3: en la Mac, un solo comando
+
+1. Abrí la **Terminal** (Cmd + espacio, escribí `Terminal`, Enter).
+2. Pegá esto, **cambiando la IP del final por la tuya**, y apretá Enter:
+
    ```
-   cd ~/Downloads
-   curl -LO https://dl.google.com/android/repository/platform-tools-latest-darwin.zip
-   unzip -o platform-tools-latest-darwin.zip
-   ```
-   *Windows (PowerShell)*
-   ```
-   cd $HOME\Downloads
-   curl.exe -LO https://dl.google.com/android/repository/platform-tools-latest-windows.zip
-   Expand-Archive -Force platform-tools-latest-windows.zip .
+   bash <(curl -fsSL https://raw.githubusercontent.com/JSalinas1996/MiBoxOs/HEAD/scripts/instalar-mac.sh) 192.168.0.23
    ```
 
-   En los comandos de abajo, `adb` es `./platform-tools/adb` en Mac y `.\platform-tools\adb.exe` en Windows.
+3. Cuando en la TV aparezca **"¿Permitir la depuración USB?"**: tildá **"Permitir siempre desde esta computadora"** y elegí **Aceptar**.
+4. El script hace todo solo: baja ADB, instala la app, da los permisos y activa el asistente en cualquier app, "Ahora suena" y el modo reposo. Al final muestra una lista con ✓ o ✗ por cada paso.
+   - Si todo sale con ✓: listo, en la TV se abre MiBoxOs.
+   - Si algo sale con ✗: sacale una captura a la Terminal y mandásela a Claude.
 
-## 2. En la TV (con el control)
+## Probar (anotá qué pasa en cada una)
 
-1. Ajustes → Preferencias del dispositivo → Información → apretá 7 veces **Compilación**.
-2. Atrás → **Opciones de desarrollador** → activá **Depuración USB**.
-3. Ajustes → Red e Internet → tu WiFi → anotá la **dirección IP**.
-
-## 3. Instalar (en la compu)
-
-```
-adb connect IP_DE_LA_MIBOX:5555
-```
-En la TV aparece "¿Permitir depuración?": tildá **Permitir siempre** y aceptá. Después, todo junto:
-
-```
-adb install -r MiBoxOs-v0.7.0.apk
-adb shell pm grant com.jsalinas.miboxos android.permission.RECORD_AUDIO
-adb shell pm grant com.jsalinas.miboxos android.permission.READ_EXTERNAL_STORAGE
-adb shell pm grant com.jsalinas.miboxos android.permission.READ_TV_LISTINGS
-adb shell settings put secure enabled_accessibility_services com.jsalinas.miboxos/com.jsalinas.miboxos.global.GlobalAssistantService
-adb shell settings put secure accessibility_enabled 1
-adb shell cmd notification allow_listener com.jsalinas.miboxos/com.jsalinas.miboxos.nowplaying.MediaListenerService
-adb shell settings put secure screensaver_components com.jsalinas.miboxos/.screensaver.ImageDream
-adb shell settings put secure screensaver_enabled 1
-```
-
-Y por último, con tu key (se guarda solo en la Mi Box):
-```
-adb shell am start -n com.jsalinas.miboxos/.MainActivity --es gemini_api_key TU_API_KEY
-```
-
-Si alguna línea da error, anotá cuál y el mensaje, y seguí con las demás.
-
-## 4. Probar (en este orden)
-
-Anotá qué pasa en cada punto. Lo más importante son la 2 y la 3.
-
-1. **Inicio:** ¿se ven los logos? Moverse con las flechas, abrir una app y volver.
-2. **Asistente desde el ícono:** en el inicio, ícono **Asistente** → decí "abrí YouTube". Si dice *"No te escuché (nivel máximo …)"*, anotá el número.
-3. **Botón de voz en cualquier app:** abrí YouTube y apretá el botón de voz del control.
-   - ¿Aparece el orbe de MiBoxOs abajo o se abre Google?
-   - Si se abre Google: volvé a MiBoxOs → Ajustes → Asistente → **Botón del asistente** → apretá el botón de voz. ¿Cambia el valor?
-4. **Centro de control:** mantené apretado el botón de voz (o tecla Menú en el inicio).
-5. **Philips Hue:** Ajustes → Philips Hue → Vincular → apretá el botón redondo del bridge. Después probá las luces en el Centro de control y por voz ("apagá el living").
+1. **Inicio:** ¿se ven los logos de las apps? Moverte con las flechas y abrir una app.
+2. **Ícono Asistente** → decí "abrí YouTube". Si dice "No te escuché", anotá el número de nivel que muestra.
+3. **Con YouTube abierto, apretá el botón de voz del control:** ¿aparece el orbe de MiBoxOs abajo o se abre Google?
+   - Si se abre Google: en MiBoxOs, ícono **Ajustes** → **Asistente** → **Botón del asistente** → apretá el botón de voz. Anotá qué valor muestra.
+4. **Mantené apretado el botón de voz:** se tiene que abrir el **Centro de control**.
+5. **Philips Hue:** Ajustes → Philips Hue → **Vincular** → apretá el botón redondo del bridge dentro de los 30 segundos. Después probá las luces desde el Centro de control y diciendo "apagá el living".
 6. **Ahora suena:** poné música en Spotify o YouTube y abrí el Centro de control.
-7. **Seguir viendo:** mirá unos minutos de algo en Netflix o YouTube y volvé al inicio.
-8. **Modo reposo:** Ajustes → Modo reposo → Probar ahora.
-9. **Apagar:** Centro de control → Apagar ahora. ¿Se apaga solo la Mi Box o también la TV?
-10. **Mover/ocultar:** mantené OK sobre un ícono.
+7. **Seguir viendo:** mirá unos minutos de algo en Netflix y volvé al inicio.
+8. **Modo reposo:** Ajustes → Modo reposo → **Probar ahora**.
+9. **Apagar:** Centro de control → **Apagar ahora**. ¿Se apaga solo la Mi Box o también la TV?
+10. **Mover/ocultar:** mantené apretado OK sobre un ícono.
 
-## 5. Solo si todo anda bien: hacerlo el inicio por defecto
+## Cuando todo ande bien: que sea el inicio por defecto
 
-Primero confirmá cuál es el launcher actual:
+En la Terminal (con tu IP):
 ```
-adb shell cmd package resolve-activity -a android.intent.action.MAIN -c android.intent.category.HOME
+bash <(curl -fsSL https://raw.githubusercontent.com/JSalinas1996/MiBoxOs/HEAD/scripts/instalar-mac.sh) 192.168.0.23 --launcher
 ```
-Si dice `com.google.android.tvlauncher`, desactivalo:
-```
-adb shell pm disable-user --user 0 com.google.android.tvlauncher
-```
-Para volver atrás en cualquier momento:
-```
-adb shell pm enable com.google.android.tvlauncher
-```
+Desde ahí, el botón Home del control abre MiBoxOs. Para volver al inicio de Google cuando quieras, el mismo comando con `--original` al final.
 
-## 6. Si algo falla
+## Si algo falla
 
-Guardá el registro de errores y mandámelo:
-```
-adb logcat -d -s AndroidRuntime > errores.txt
-```
+El mismo comando con `--errores` al final guarda el registro en Descargas (`errores-miboxos.txt`). Mandáselo a Claude junto con lo que anotaste.
+
+## Actualizaciones
+
+No hace falta repetir nada: cuando haya una versión nueva, aparece en MiBoxOs → Ajustes → **Acerca de**. La primera vez Android pide permitir que MiBoxOs instale apps.

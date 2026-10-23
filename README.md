@@ -45,6 +45,10 @@ Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 Lo que no cubren: el micrófono del control real, la API real de Gemini (sin key en CI), un bridge real y el rendimiento en la Mi Box.
 
+## Instalación rápida (Mac)
+
+Guía paso a paso con un solo comando: [docs/INSTALACION.md](docs/INSTALACION.md).
+
 ## Requisitos
 
 - Una compu en el mismo WiFi que la Mi Box, con [platform-tools (adb)](https://developer.android.com/tools/releases/platform-tools).
