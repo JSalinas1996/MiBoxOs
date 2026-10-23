@@ -4,6 +4,7 @@ import android.util.Base64
 import com.jsalinas.miboxos.Endpoints
 import com.jsalinas.miboxos.apps.TvApp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -38,6 +39,25 @@ class GeminiClient(private val apiKey: String, private val model: String) {
             .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functions(withHue, withNavigation))))
             .put("toolConfig", JSONObject().put("functionCallingConfig", JSONObject().put("mode", "ANY")))
 
+        // Si el modelo está saturado (503/429/500) reintenta una vez y después prueba los modelos de respaldo
+        val models = (listOf(model) + FALLBACK_MODELS).distinct()
+        var last: Exception? = null
+        for ((i, m) in models.withIndex()) {
+            repeat(if (i == 0) 2 else 1) { attempt ->
+                try {
+                    return@withContext parse(post(m, body))
+                } catch (e: Overloaded) {
+                    last = e
+                    if (attempt == 0 && i == 0) delay(1_000)
+                }
+            }
+        }
+        throw IllegalStateException("Gemini está saturado en este momento; probá de nuevo en un rato", last)
+    }
+
+    private class Overloaded(message: String) : Exception(message)
+
+    private fun post(model: String, body: JSONObject): JSONObject {
         val conn = URL("${Endpoints.gemini}/v1beta/models/$model:generateContent")
             .openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
@@ -54,9 +74,10 @@ class GeminiClient(private val apiKey: String, private val model: String) {
             if (code !in 200..299) {
                 val msg = runCatching { JSONObject(response).getJSONObject("error").getString("message") }
                     .getOrDefault(response.take(200))
+                if (code in RETRYABLE) throw Overloaded("Gemini respondió $code: $msg")
                 error("Gemini respondió $code: $msg")
             }
-            parse(JSONObject(response))
+            return JSONObject(response)
         } finally {
             conn.disconnect()
         }
@@ -96,6 +117,10 @@ class GeminiClient(private val apiKey: String, private val model: String) {
     private fun text(value: String) = JSONObject().put("text", value)
 
     private companion object {
+        /** Modelos estables de respaldo si el elegido está saturado. */
+        val FALLBACK_MODELS = listOf("gemini-3.6-flash", "gemini-3.5-flash-lite")
+        val RETRYABLE = setOf(429, 500, 503)
+
         val SYSTEM_PROMPT = """
 Sos el asistente de voz de un televisor (Xiaomi Mi Box S con Android TV) en Argentina.
 Escuchás el audio del usuario y controlás la TV llamando funciones.

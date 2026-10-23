@@ -16,11 +16,14 @@ class FakeGemini {
 
     @Volatile var response: MockResponse = reply("hola", "Hola.")
 
+    /** Respuestas que se usan una vez cada una, en orden, antes de [response]. */
+    val queue = java.util.concurrent.ConcurrentLinkedQueue<MockResponse>()
+
     init {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 requests += request
-                return response
+                return queue.poll() ?: response
             }
         }
         server.start()

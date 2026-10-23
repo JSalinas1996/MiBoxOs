@@ -18,6 +18,9 @@ android {
         // Subir versionName publica una versión nueva en GitHub (workflow "Publicar versión")
         versionCode = 7
         versionName = "0.7.0"
+        // Key de Gemini precargada SOLO en builds locales personales (variable de entorno); en GitHub
+        // queda vacía y la key se carga por ADB. La app la copia a sus ajustes en el primer arranque.
+        buildConfigField("String", "DEFAULT_GEMINI_KEY", "\"${System.getenv("MIBOX_GEMINI_KEY").orEmpty()}\"")
     }
 
     // Clave fija de MiBoxOs: sin ella, cada versión tendría otra firma y Android no la instalaría
@@ -49,6 +52,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

@@ -61,6 +61,9 @@ class MiBoxApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashGuard.install(this, prefs)
+        if (prefs.geminiApiKey.isBlank() && BuildConfig.DEFAULT_GEMINI_KEY.isNotBlank()) {
+            prefs.geminiApiKey = BuildConfig.DEFAULT_GEMINI_KEY
+        }
         darkMode = prefs.darkMode
     }
 }

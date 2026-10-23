@@ -66,6 +66,35 @@ class GeminiClientTest {
         }
     }
 
+    @Test fun `modelo saturado - reintenta y pasa a un modelo de respaldo`() = runBlocking {
+        gemini.queue += FakeGemini.error(503, "high demand")
+        gemini.queue += FakeGemini.error(503, "high demand")
+        gemini.response = FakeGemini.reply("abrí netflix", "Listo.")
+        val reply = GeminiClient("k", "gemini-3.8-flash").interpret(byteArrayOf(), apps, null)
+        assertEquals("Listo.", reply.reply)
+        assertEquals(
+            listOf("gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.6-flash"),
+            gemini.requests.map { it.path!!.substringAfter("models/").substringBefore(":") },
+        )
+    }
+
+    @Test fun `todos saturados - mensaje claro`() = runBlocking {
+        gemini.response = FakeGemini.error(503, "high demand")
+        try {
+            GeminiClient("k", "gemini-3.8-flash").interpret(byteArrayOf(), apps, null)
+            fail("debería fallar")
+        } catch (e: IllegalStateException) {
+            assertEquals("Gemini está saturado en este momento; probá de nuevo en un rato", e.message)
+        }
+        assertEquals(4, gemini.requests.size)
+    }
+
+    @Test fun `key invalida no reintenta`() = runBlocking {
+        gemini.response = FakeGemini.error(400, "API key not valid")
+        runCatching { GeminiClient("k", "m").interpret(byteArrayOf(), apps, null) }
+        assertEquals(1, gemini.requests.size)
+    }
+
     @Test fun `respuesta sin candidatos no rompe`() = runBlocking {
         gemini.response = okhttp3.mockwebserver.MockResponse().setBody("""{"candidates":[]}""")
         val reply = GeminiClient("k", "m").interpret(byteArrayOf(), apps, null)
