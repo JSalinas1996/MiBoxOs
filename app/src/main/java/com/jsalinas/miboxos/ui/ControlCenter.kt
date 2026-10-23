@@ -106,14 +106,14 @@ fun ControlCenter(visible: Boolean, state: ControlCenterState, actions: ControlC
                     .fillMaxHeight()
                     .width(400.dp)
                     .padding(20.dp)
-                    .background(colors.panel.copy(alpha = 0.97f), RoundedCornerShape(36.dp))
+                    .background(colors.panel, RoundedCornerShape(36.dp))
                     .onFocusChanged { hasFocus = it.hasFocus }
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 26.dp, vertical = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 ClockHeader()
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     QuickTile("Reposo", Modifier.focusRequester(first), onClick = actions.onScreensaver) { ScreensaverIcon(it) }
                     QuickTile("Asistente", onClick = actions.onAssistant) { Orb(active = false, level = 0f, size = 30.dp) }
                     QuickTile(if (state.darkMode) "Oscuro" else "Claro", onClick = { actions.onDarkMode(!state.darkMode) }) {
@@ -180,10 +180,10 @@ private fun ClockHeader() {
 private fun QuickTile(label: String, modifier: Modifier = Modifier, onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
     val colors = LocalColors.current
     var focused by remember { mutableStateOf(false) }
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(68.dp)) {
         Surface(
             onClick = onClick,
-            modifier = modifier.size(64.dp).onFocusChanged { focused = it.isFocused }
+            modifier = modifier.size(60.dp).onFocusChanged { focused = it.isFocused }
                 .semantics { contentDescription = label }.testTag("cc:$label"),
             shape = ClickableSurfaceDefaults.shape(CircleShape),
             colors = ClickableSurfaceDefaults.colors(containerColor = colors.control, focusedContainerColor = colors.controlFocused),

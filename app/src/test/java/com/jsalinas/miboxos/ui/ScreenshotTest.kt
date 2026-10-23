@@ -22,6 +22,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import com.jsalinas.miboxos.apps.SystemTiles
+import com.jsalinas.miboxos.watchnext.WatchNextItem
 import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantState
 import com.jsalinas.miboxos.hue.HueStatus
@@ -91,6 +92,54 @@ class ScreenshotTest {
         compose.setContent { com.jsalinas.miboxos.screensaver.Screensaver(images, { asset("saturno") }, 20) }
         compose.mainClock.advanceTimeBy(3_000)
         compose.onRoot().captureRoboImage("../docs/preview/screensaver.png")
+    }
+
+    @Test fun controlCenter() {
+        compose.setContent {
+            CompositionLocalProvider(LocalColors provides appColors(true, true)) {
+                Box(Modifier.fillMaxSize()) {
+                    HomeScreen(
+                        apps = apps.take(3) + SystemTiles.assistant() + SystemTiles.settings() + apps.drop(3),
+                        wallpaper = earth, frosted = earthFrosted, interactive = false, onLaunch = {},
+                        firstTileFocus = remember { FocusRequester() },
+                    )
+                    ControlCenter(
+                        visible = true,
+                        state = ControlCenterState(
+                            darkMode = true, huePaired = true,
+                            rooms = listOf(RoomState("Living", true), RoomState("Dormitorio", false), RoomState("Cocina", true), RoomState("Planta baja", false)),
+                            scenes = listOf("Relajarse · Living", "Cine · Living", "Leer · Dormitorio", "Concentración · Cocina"),
+                        ),
+                        actions = ControlCenterActions(),
+                    )
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onRoot().captureRoboImage("../docs/preview/controlCenter.png")
+    }
+
+    @Test fun homeContinueWatching() {
+        val items = listOf(
+            WatchNextItem(1, "cine", "Stranger Things", "T2 E5 · Dig Dug", null, 0.55f, asset("nebulosa_carina_thumb"), 3),
+            WatchNextItem(2, "videos", "Receta de pizza napolitana", "", null, 0.25f, asset("aurora_thumb"), 2),
+            WatchNextItem(3, "series", "The Last of Us", "T1 E3 · Long, Long Time", null, 0.8f, asset("tierra_desde_la_luna_thumb"), 1),
+            WatchNextItem(4, "series", "Planeta Tierra III", "T1 E1 · Costas", null, 0.1f, asset("luces_nocturnas_thumb"), 0),
+        )
+        compose.setContent {
+            CompositionLocalProvider(LocalColors provides appColors(true, true)) {
+                HomeScreen(
+                    apps = apps.take(3) + SystemTiles.assistant() + SystemTiles.settings() + apps.drop(3),
+                    wallpaper = asset("saturno"), frosted = earthFrosted, interactive = true, onLaunch = {},
+                    firstTileFocus = remember { FocusRequester() },
+                    continueWatching = items,
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.onRoot().captureRoboImage("../docs/preview/continueWatching.png")
     }
 
     @Test fun settingsHue() = shot("settingsHue", dark = true, settings = SettingsPage.HUE)

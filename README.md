@@ -23,12 +23,14 @@ Render real del código con apps ficticias (logos genéricos). El diseño sigue 
 | ![](docs/preview/homeLight.png) | ![](docs/preview/assistantDone.png) |
 | **Modo reposo** | **Ajustes del modo reposo** |
 | ![](docs/preview/screensaver.png) | ![](docs/preview/settingsScreensaver.png) |
+| **Centro de control** | **Seguir viendo** |
+| ![](docs/preview/controlCenter.png) | ![](docs/preview/continueWatching.png) |
 
 Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 ## Tests
 
-`./gradlew testDebugUnitTest` corre 106 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+`./gradlew testDebugUnitTest` corre 108 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
 
 - **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
 - **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.

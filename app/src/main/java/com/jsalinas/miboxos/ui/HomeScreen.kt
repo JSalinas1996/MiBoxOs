@@ -94,9 +94,9 @@ fun HomeScreen(
     var shelfHasFocus by remember { mutableStateOf(false) }
     val row = focusedIndex / COLUMNS
     val scrolled = row > 0 && !shelfHasFocus
-    // Como en tvOS, el Top Shelf muestra lo de la app enfocada; si esa app no publicó nada, todo
+    // Como en tvOS, el Top Shelf prioriza lo de la app enfocada; después, lo del resto de las apps
     val focusedPackage = apps.getOrNull(focusedIndex)?.packageName
-    val shelfItems = continueWatching.filter { it.packageName == focusedPackage }.ifEmpty { continueWatching }
+    val shelfItems = continueWatching.sortedByDescending { it.packageName == focusedPackage }
 
     val offset by animateDpAsState(
         if (!scrolled) 0.dp else -(TOP_SHELF - 64.dp) - ROW_PITCH * (row - 1),
