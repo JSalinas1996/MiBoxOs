@@ -72,7 +72,7 @@ class HueController(private val prefs: Prefs, private val scope: CoroutineScope)
                 return@launch
             }
             status = home?.let {
-                HueStatus.Paired("${it.lights.size} luces · ${it.groups.size - 1} habitaciones/zonas · ${it.scenes.size} escenas")
+                HueStatus.Paired("${it.lights.size} luces · ${it.groups.size - 1} grupos · ${it.scenes.size} escenas")
             } ?: HueStatus.NotPaired
         }
     }

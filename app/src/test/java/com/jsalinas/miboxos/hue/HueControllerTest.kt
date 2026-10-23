@@ -53,7 +53,7 @@ class HueControllerTest {
             Thread.sleep(300)
         }
         waitUntil(what = "vinculado") { controller.status is HueStatus.Paired }
-        assertEquals("3 luces · 3 habitaciones/zonas · 3 escenas", (controller.status as HueStatus.Paired).summary)
+        assertEquals("3 luces · 3 grupos · 3 escenas", (controller.status as HueStatus.Paired).summary)
         assertEquals(bridge.appKey, prefs.hueAppKey)
         assertEquals(bridge.port, prefs.hueBridgePort)
         assertTrue(controller.isPaired)

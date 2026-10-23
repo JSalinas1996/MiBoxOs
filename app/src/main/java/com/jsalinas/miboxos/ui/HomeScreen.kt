@@ -3,32 +3,34 @@
 package com.jsalinas.miboxos.ui
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,79 +38,96 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Border
+import androidx.compose.ui.util.lerp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import com.jsalinas.miboxos.apps.TvApp
-import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
+// Medidas pensadas para 960×540 dp (1080p), con proporciones como el inicio de tvOS
+private val TOP_SHELF = 292.dp
+private val ICON_W = 150.dp
+private val ICON_H = 84.dp
+private val COL_GAP = 26.dp
+private val ROW_PITCH = 132.dp
+private const val COLUMNS = 5
+
+/**
+ * Inicio estilo tvOS: arriba el Top Shelf (el fondo elegido, a sangre) y abajo los íconos sobre un
+ * material desenfocado. Al bajar de la primera fila el Top Shelf se va hacia arriba, como en Apple TV.
+ */
 @Composable
 fun HomeScreen(
     apps: List<TvApp>,
     wallpaper: ImageBitmap?,
+    frosted: ImageBitmap?,
     interactive: Boolean,
     onLaunch: (TvApp) -> Unit,
-    onAssistant: () -> Unit,
-    onSettings: () -> Unit,
     firstTileFocus: FocusRequester,
 ) {
-    var focused by remember { mutableStateOf<TvApp?>(null) }
+    var focusedIndex by remember { mutableIntStateOf(0) }
     var gridHasFocus by remember { mutableStateOf(false) }
+    val row = focusedIndex / COLUMNS
+    val scrolled = row > 0
+
+    val offset by animateDpAsState(
+        if (!scrolled) 0.dp else -(TOP_SHELF - 64.dp) - ROW_PITCH * (row - 1),
+        tween(450, easing = FastOutSlowInEasing), label = "scroll",
+    )
+    val reveal by animateFloatAsState(if (scrolled) 1f else 0f, tween(450), label = "material")
 
     Box(Modifier.fillMaxSize()) {
-        Background(wallpaper)
+        Wallpaper(wallpaper)
+        Material(frosted, reveal)
 
-        Column(Modifier.fillMaxSize()) {
-            TopBar(interactive, onAssistant = onAssistant, onSettings = onSettings)
-
-            Box(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 56.dp), contentAlignment = Alignment.BottomStart) {
-                Crossfade((focused ?: apps.firstOrNull())?.label.orEmpty(), animationSpec = tween(250), label = "hero") { label ->
-                    BasicText(label, style = Type.hero, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(5),
-                modifier = Modifier.fillMaxWidth().height(300.dp).onFocusChanged { gridHasFocus = it.hasFocus },
-                contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 24.dp, bottom = 48.dp),
-                horizontalArrangement = Arrangement.spacedBy(28.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
-                    AppTile(
-                        app = app,
-                        isFocused = focused?.packageName == app.packageName,
-                        onFocus = { focused = app },
-                        onClick = { onLaunch(app) },
-                        modifier = Modifier
-                            .focusProperties { canFocus = interactive }
-                            .then(if (index == 0) Modifier.focusRequester(firstTileFocus) else Modifier),
-                    )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .wrapContentHeight(Alignment.Top, unbounded = true)
+                .offset(y = offset)
+                .onFocusChanged { gridHasFocus = it.hasFocus },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(TOP_SHELF))
+            apps.chunked(COLUMNS).forEachIndexed { r, rowApps ->
+                Row(Modifier.height(ROW_PITCH).width(ICON_W * COLUMNS + COL_GAP * (COLUMNS - 1)), horizontalArrangement = Arrangement.spacedBy(COL_GAP)) {
+                    rowApps.forEachIndexed { c, app ->
+                        val index = r * COLUMNS + c
+                        AppIcon(
+                            app = app,
+                            isFocused = gridHasFocus && focusedIndex == index,
+                            onFocus = { focusedIndex = index },
+                            onClick = { onLaunch(app) },
+                            modifier = Modifier
+                                .focusProperties { canFocus = interactive }
+                                .then(if (index == 0) Modifier.focusRequester(firstTileFocus) else Modifier),
+                        )
+                    }
                 }
             }
         }
     }
 
-    // Al arrancar y al cerrar Ajustes el foco va a la primera app. La grilla es lazy: la tarjeta puede no
-    // existir todavía en el primer cuadro, así que se reintenta cuadro a cuadro hasta que tome el foco.
+    // Al arrancar y al volver de Ajustes el foco va a la primera app; se reintenta cuadro a cuadro
+    // porque en el primer cuadro el ícono puede no estar listo todavía
     LaunchedEffect(apps.isNotEmpty(), interactive) {
         if (apps.isEmpty() || !interactive) return@LaunchedEffect
         repeat(30) {
@@ -119,132 +138,97 @@ fun HomeScreen(
     }
 }
 
-/** Foto elegida o, en "Minimal", un degradé sobrio con un halo de luz arriba a la izquierda. */
 @Composable
-private fun Background(wallpaper: ImageBitmap?) {
+private fun Wallpaper(image: ImageBitmap?) {
     val colors = LocalColors.current
-    Crossfade(wallpaper, animationSpec = tween(500), label = "wallpaper") { image ->
-        if (image != null) {
-            Box(Modifier.fillMaxSize()) {
-                Image(
-                    bitmap = image,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    filterQuality = FilterQuality.High,
-                )
-                // Oscurece solo la franja de las apps para que los nombres se lean sobre cualquier foto
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.6f))
-                    )
-                )
-            }
+    Crossfade(image, animationSpec = tween(600), label = "wallpaper") { img ->
+        if (img != null) {
+            Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High)
         } else {
-            val (glow, base) = if (colors.dark) Color(0xFF2C2C30) to Color(0xFF0A0A0B) else Color(0xFFFFFFFF) to Color(0xFFE3E3E8)
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(listOf(glow, base), center = Offset(300f, 0f), radius = 2400f)
-                )
-            )
+            // "Minimal": degradé sobrio con un halo arriba, del gris de tvOS
+            val (glow, base) = if (colors.dark) Color(0xFF3A3A3F) to Color(0xFF0C0C0E) else Color.White to Color(0xFFD8D8DE)
+            Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(glow, base), center = Offset(960f, -200f), radius = 2200f)))
         }
     }
 }
 
+/**
+ * Material desenfocado: en reposo cubre solo la franja de los íconos (el Top Shelf queda nítido);
+ * al bajar de fila sube hasta cubrir toda la pantalla.
+ */
 @Composable
-private fun TopBar(interactive: Boolean, onAssistant: () -> Unit, onSettings: () -> Unit) {
-    var now by remember { mutableStateOf(Date()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = Date()
-            delay(60_000 - System.currentTimeMillis() % 60_000)
-        }
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 56.dp, end = 56.dp, top = 32.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PillButton(interactive, onClick = onAssistant) { color ->
-            Orb(active = false, level = 0f, size = 22.dp)
-            Spacer(Modifier.size(10.dp))
-            BasicText("Asistente", style = Type.body.copy(color = color))
-        }
-        Spacer(Modifier.weight(1f))
-        BasicText(SimpleDateFormat("HH:mm", Locale.getDefault()).format(now), style = Type.clock)
-        Spacer(Modifier.size(20.dp))
-        PillButton(interactive, onClick = onSettings) { color ->
-            BasicText("Ajustes", style = Type.body.copy(color = color))
-        }
-    }
-}
-
-/** Botón translúcido sobre el fondo; al enfocarse se vuelve sólido como en tvOS. */
-@Composable
-private fun PillButton(interactive: Boolean, onClick: () -> Unit, content: @Composable (Color) -> Unit) {
+private fun Material(frosted: ImageBitmap?, reveal: Float) {
     val colors = LocalColors.current
-    var hasFocus by remember { mutableStateOf(false) }
-    Surface(
-        onClick = onClick,
-        modifier = Modifier
-            .focusProperties { canFocus = interactive }
-            .onFocusChanged { hasFocus = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(CircleShape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = colors.onWallpaper.copy(alpha = 0.14f),
-            focusedContainerColor = colors.controlFocused,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+    val start = lerp(0.46f, -0.3f, reveal)
+    val end = lerp(0.60f, 0f, reveal)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+            .drawWithContent {
+                drawContent()
+                drawRect(
+                    Brush.verticalGradient(start to Color.Transparent, end to Color.Black),
+                    blendMode = BlendMode.DstIn,
+                )
+            },
     ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            content(if (hasFocus) colors.onControlFocused else colors.onWallpaper)
+        if (frosted != null) {
+            Image(frosted, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High)
         }
+        Box(Modifier.fillMaxSize().background(if (frosted != null) colors.materialTint else colors.materialTint.copy(alpha = 0.25f)))
     }
 }
 
 @Composable
-private fun AppTile(
+private fun AppIcon(
     app: TvApp,
     isFocused: Boolean,
     onFocus: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val labelAlpha by animateFloatAsState(if (isFocused) 1f else 0f, tween(200), label = "label")
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    val labelAlpha by animateFloatAsState(if (isFocused) 1f else 0f, tween(180), label = "label")
+    // Brillo especular que cruza el ícono al recibir el foco
+    val shine = remember { Animatable(-0.6f) }
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            shine.snapTo(-0.6f)
+            shine.animateTo(1.6f, tween(900, easing = LinearEasing))
+        }
+    }
+    Column(Modifier.width(ICON_W), horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(
             onClick = onClick,
             modifier = modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
+                .size(ICON_W, ICON_H)
                 .onFocusChanged { if (it.isFocused) onFocus() },
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(14.dp)),
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
             colors = ClickableSurfaceDefaults.colors(
                 containerColor = LocalColors.current.tile,
                 focusedContainerColor = LocalColors.current.tile,
             ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
-            // Borde finito: sin él, un banner negro desaparece sobre un fondo espacial negro
-            border = ClickableSurfaceDefaults.border(
-                border = Border(BorderStroke(1.dp, LocalColors.current.onWallpaper.copy(alpha = 0.14f))),
-            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.17f),
             glow = ClickableSurfaceDefaults.glow(
-                focusedGlow = Glow(elevationColor = Color.Black.copy(alpha = 0.55f), elevation = 14.dp),
+                focusedGlow = Glow(elevationColor = Color.Black.copy(alpha = 0.6f), elevation = 22.dp),
             ),
         ) {
-            Image(
-                bitmap = app.tile,
-                contentDescription = app.label,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                filterQuality = FilterQuality.High,
-            )
-            // Reflejo diagonal sutil sobre la tarjeta enfocada, como en tvOS
+            Image(app.tile, app.label, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.High)
             if (isFocused) {
+                val p = shine.value
                 Box(
                     Modifier.fillMaxSize().background(
-                        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.Transparent))
+                        Brush.linearGradient(
+                            (p - 0.25f).coerceIn(0f, 1f) to Color.Transparent,
+                            p.coerceIn(0f, 1f) to Color.White.copy(alpha = 0.22f),
+                            (p + 0.25f).coerceIn(0f, 1f) to Color.Transparent,
+                            start = Offset.Zero,
+                            end = Offset(600f, 340f),
+                        )
                     )
                 )
+                // Luz cenital fija, como el reflejo de los íconos de tvOS
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.12f), Color.Transparent))))
             }
         }
         BasicText(
@@ -252,7 +236,8 @@ private fun AppTile(
             style = Type.tileLabel.copy(textAlign = TextAlign.Center),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 12.dp).alpha(labelAlpha),
+            // El nombre puede ser más ancho que el ícono sin empujar a los vecinos
+            modifier = Modifier.requiredWidth(ICON_W + 60.dp).padding(top = 18.dp).alpha(labelAlpha),
         )
     }
 }

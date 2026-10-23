@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.lifecycleScope
 import com.jsalinas.miboxos.apps.AppRepository
+import com.jsalinas.miboxos.apps.SystemTiles
 import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantController
 import com.jsalinas.miboxos.assistant.AssistantState
@@ -29,7 +30,8 @@ import com.jsalinas.miboxos.ui.AssistantOverlay
 import com.jsalinas.miboxos.ui.HomeScreen
 import com.jsalinas.miboxos.ui.LocalColors
 import com.jsalinas.miboxos.ui.SettingsActions
-import com.jsalinas.miboxos.ui.SettingsPanel
+import com.jsalinas.miboxos.ui.SettingsPage
+import com.jsalinas.miboxos.ui.SettingsScreen
 import com.jsalinas.miboxos.ui.SettingsState
 import com.jsalinas.miboxos.ui.appColors
 import com.jsalinas.miboxos.wallpaper.Wallpaper
@@ -48,7 +50,10 @@ class MainActivity : ComponentActivity() {
     private var wallpaperImage by mutableStateOf<ImageBitmap?>(null)
     private var wallpaperList by mutableStateOf<List<Wallpaper>>(emptyList())
     private var wallpaperThumbs by mutableStateOf<Map<String, ImageBitmap>>(emptyMap())
+    private var wallpaperFrosted by mutableStateOf<ImageBitmap?>(null)
     private var settingsOpen by mutableStateOf(false)
+    private var settingsPage by mutableStateOf(SettingsPage.ROOT)
+    private val systemTiles by lazy { SystemTiles.assistant() to SystemTiles.settings() }
     private val firstTileFocus = FocusRequester()
 
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -81,6 +86,7 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 when {
                     assistant.state != AssistantState.Idle -> assistant.dismiss()
+                    settingsOpen && settingsPage != SettingsPage.ROOT -> settingsPage = SettingsPage.ROOT
                     settingsOpen -> closeSettings()
                 }
             }
@@ -90,16 +96,16 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalColors provides appColors(darkMode, photoWallpaper = wallpaper.source != null)) {
                 Box(Modifier.fillMaxSize()) {
                     HomeScreen(
-                        apps = apps,
+                        apps = homeApps(),
                         wallpaper = wallpaperImage,
+                        frosted = wallpaperFrosted,
                         interactive = !settingsOpen,
-                        onLaunch = { repo.launch(it.packageName) },
-                        onAssistant = ::onAssistantKey,
-                        onSettings = ::openSettings,
+                        onLaunch = ::launch,
                         firstTileFocus = firstTileFocus,
                     )
-                    SettingsPanel(
+                    SettingsScreen(
                         visible = settingsOpen,
+                        page = settingsPage,
                         state = SettingsState(
                             darkMode = darkMode,
                             wallpapers = wallpaperList,
@@ -109,8 +115,10 @@ class MainActivity : ComponentActivity() {
                             hue = hue.status,
                             assistantReady = prefs.geminiApiKey.isNotBlank(),
                             model = prefs.geminiModel,
+                            version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty(),
                         ),
                         actions = SettingsActions(
+                            onNavigate = { settingsPage = it },
                             onDarkMode = { darkMode = it; prefs.darkMode = it },
                             onWallpaper = ::selectWallpaper,
                             onHuePair = hue::pair,
@@ -136,7 +144,7 @@ class MainActivity : ComponentActivity() {
         // Botón Home estando ya en el inicio: volver a la primera app
         if (intent.hasCategory(Intent.CATEGORY_HOME)) {
             assistant.dismiss()
-            settingsOpen = false
+            closeSettings()
             runCatching { firstTileFocus.requestFocus() }
         }
     }
@@ -149,8 +157,26 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    /**
+     * Como en tvOS, Asistente y Ajustes son íconos en la primera fila (después de las 3 apps más usadas),
+     * así se llega a todo con las flechas y OK, sin depender de teclas especiales del control.
+     */
+    private fun homeApps(): List<TvApp> {
+        val (assistantTile, settingsTile) = systemTiles
+        return apps.take(3) + assistantTile + settingsTile + apps.drop(3)
+    }
+
+    private fun launch(app: TvApp) {
+        when (app.packageName) {
+            SystemTiles.ASSISTANT -> onAssistantKey()
+            SystemTiles.SETTINGS -> openSettings()
+            else -> repo.launch(app.packageName)
+        }
+    }
+
     private fun openSettings() {
         refreshWallpapers()
+        settingsPage = SettingsPage.ROOT
         settingsOpen = true
         // Se pide una sola vez: si lo rechazan, los fondos incluidos siguen andando
         if (!prefs.askedStoragePermission &&
@@ -180,7 +206,10 @@ class MainActivity : ComponentActivity() {
         val selected = wallpapers.byId(id)
         wallpaper = selected
         prefs.wallpaper = selected.id
-        lifecycleScope.launch { wallpaperImage = wallpapers.loadFull(selected) }
+        lifecycleScope.launch {
+            wallpaperImage = wallpapers.loadFull(selected)
+            wallpaperFrosted = wallpapers.loadFrosted(selected)
+        }
     }
 
     private fun onAssistantKey() {
@@ -198,8 +227,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        // Teclas que pueden llegar a la app según el control; el botón de Google Assistant
-        // suele interceptarlo el sistema, por eso también está el botón "Asistente" en pantalla.
+        // Atajos si el control los manda; el botón de Google Assistant suele interceptarlo el sistema,
+        // por eso el asistente también es un ícono en el inicio.
         val ASSISTANT_KEYS = setOf(
             KeyEvent.KEYCODE_SEARCH,
             KeyEvent.KEYCODE_VOICE_ASSIST,

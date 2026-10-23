@@ -112,37 +112,67 @@ class MainActivityTest {
         scenario.onActivity { assertFalse(it.isFinishing) }
     }
 
-    @Test fun ajustes_abreConFocoCambiaModoYFondoYAtrasVuelveAlInicio() {
-        launch()
-        select("Ajustes")
-        waitText("APARIENCIA")
-        compose.waitForIdle()
-        // Al abrir, el foco tiene que quedar dentro del panel (si no, el control no hace nada)
-        compose.onNodeWithText("Oscuro").assertIsFocused()
+    private fun row(text: String) = compose.onNode(hasText(text) and hasClickAction())
 
-        key(Key.DirectionRight)
-        compose.onNodeWithText("Claro").assertIsFocused()
+    @Test fun ajustes_navegacionComoTvOS_modoFondoYAtras() {
+        launch()
+        selectDescription("Ajustes")
+        waitText("Apariencia")
+        compose.waitForIdle()
+        // Al abrir, el foco queda en la primera fila (si no, el control no hace nada)
+        row("Apariencia").assertIsFocused()
+
+        // Apariencia → Claro
+        key(Key.DirectionCenter)
+        waitText("Oscuro")
+        compose.waitForIdle()
+        row("Oscuro").assertIsFocused()
+        key(Key.DirectionDown)
+        row("Claro").assertIsFocused()
         key(Key.DirectionCenter)
         assertFalse(prefs.darkMode)
 
+        // Atrás vuelve a la raíz con el foco en la fila de la que se salió
+        activityKey(KeyEvent.KEYCODE_BACK)
+        waitText("Philips Hue")
+        compose.waitForIdle()
+        row("Apariencia").assertIsFocused()
+
+        // Fondo → Tierra
+        key(Key.DirectionDown)
+        row("Fondo").assertIsFocused()
+        key(Key.DirectionCenter)
         compose.waitUntil(5_000) { runCatching { compose.onNodeWithContentDescription("Tierra").assertExists() }.isSuccess }
         selectDescription("Tierra")
         assertEquals("tierra", prefs.wallpaper)
 
+        // Atrás dos veces: raíz y después el inicio, con el foco en las apps
         activityKey(KeyEvent.KEYCODE_BACK)
         compose.waitForIdle()
-        compose.onNodeWithText("APARIENCIA").assertDoesNotExist()
-        // El foco vuelve a las apps
+        activityKey(KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithText("Philips Hue").assertDoesNotExist()
         focused("Fotos")
         scenario.onActivity { assertFalse(it.isFinishing) }
+    }
+
+    @Test fun inicio_asistenteYAjustesEstanEnLaPrimeraFila() {
+        launch()
+        // Fotos, Netflix, Spotify, Asistente, Ajustes, YouTube
+        repeat(3) { key(Key.DirectionRight) }
+        focused("Asistente")
+        key(Key.DirectionRight)
+        focused("Ajustes")
+        key(Key.DirectionCenter)
+        waitText("Philips Hue")
     }
 
     @Test fun ajustes_recuerdaModoYFondoAlReiniciar() {
         prefs.darkMode = false
         prefs.wallpaper = "saturno"
         launch()
-        select("Ajustes")
-        waitText("APARIENCIA")
+        selectDescription("Ajustes")
+        waitText("Apariencia")
         // El fondo elegido aparece marcado y el modo claro activo; se verifica por las prefs que leyó la Activity
         assertEquals("saturno", prefs.wallpaper)
         assertFalse(prefs.darkMode)
@@ -150,11 +180,11 @@ class MainActivityTest {
 
     @Test fun botonHome_cierraAjustes() {
         launch()
-        select("Ajustes")
-        waitText("APARIENCIA")
+        selectDescription("Ajustes")
+        waitText("Apariencia")
         scenario.onActivity { it.onNewIntent(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)) }
         compose.waitForIdle()
-        compose.onNodeWithText("APARIENCIA").assertDoesNotExist()
+        compose.onNodeWithText("Philips Hue").assertDoesNotExist()
         focused("Fotos")
     }
 
@@ -167,7 +197,7 @@ class MainActivityTest {
     @Test fun asistente_pidePermisoDeMicrofonoSiNoLoTiene() {
         shadowOf(app).denyPermissions(Manifest.permission.RECORD_AUDIO)
         launch()
-        select("Asistente")
+        selectDescription("Asistente")
         scenario.onActivity {
             assertEquals(Manifest.permission.RECORD_AUDIO, shadowOf(it).lastRequestedPermission.requestedPermissions.single())
         }
@@ -176,7 +206,7 @@ class MainActivityTest {
     @Test fun asistente_permisoDenegadoExplicaComoHabilitarlo() {
         shadowOf(app).denyPermissions(Manifest.permission.RECORD_AUDIO)
         launch()
-        select("Asistente")
+        selectDescription("Asistente")
         scenario.onActivity {
             val request = shadowOf(it).lastRequestedPermission
             it.onRequestPermissionsResult(request.requestCode, request.requestedPermissions, intArrayOf(-1))
@@ -187,16 +217,16 @@ class MainActivityTest {
     @Test fun ajustes_pidePermisoDeArchivosUnaSolaVez() {
         shadowOf(app).denyPermissions(Manifest.permission.READ_EXTERNAL_STORAGE)
         launch()
-        select("Ajustes")
-        waitText("APARIENCIA")
+        selectDescription("Ajustes")
+        waitText("Apariencia")
         var first: Any? = null
         scenario.onActivity {
             first = shadowOf(it).lastRequestedPermission
             assertEquals(Manifest.permission.READ_EXTERNAL_STORAGE, shadowOf(it).lastRequestedPermission.requestedPermissions.single())
         }
         activityKey(KeyEvent.KEYCODE_BACK)
-        select("Ajustes")
-        waitText("APARIENCIA")
+        selectDescription("Ajustes")
+        waitText("Apariencia")
         // Ningún pedido nuevo
         scenario.onActivity { assert(shadowOf(it).lastRequestedPermission === first) }
     }
@@ -206,7 +236,7 @@ class MainActivityTest {
         assertEquals("KEY-DE-PRUEBA", prefs.geminiApiKey)
         FakeAudio.speech()
         gemini.response = FakeGemini.reply("abrí spotify", "Abriendo Spotify.", "abrir_app" to JSONObject().put("paquete", "com.spotify.tv.android"))
-        select("Asistente")
+        selectDescription("Asistente")
         waitText("Abriendo Spotify.")
         compose.onNodeWithText("“abrí spotify”").assertExists()
         assertEquals("com.spotify.tv.android", shadowOf(app).nextStartedActivity.component!!.packageName)
@@ -231,10 +261,12 @@ class MainActivityTest {
         Endpoints.hueDiscovery = discovery.url("/").toString()
         try {
             launch(Intent(app, MainActivity::class.java).putExtra("gemini_api_key", "k"))
-            select("Ajustes")
+            selectDescription("Ajustes")
+            waitText("Philips Hue")
+            select("Philips Hue")
             waitText("Vincular")
             select("Vincular")
-            waitText("3 luces · 3 habitaciones/zonas · 3 escenas")
+            waitText("3 luces · 3 grupos · 3 escenas")
 
             activityKey(KeyEvent.KEYCODE_BACK)
             FakeAudio.speech()

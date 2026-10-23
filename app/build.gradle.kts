@@ -15,8 +15,8 @@ android {
         // Mi Box S (1.ª gen) corre Android TV 9 = API 28
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 4
+        versionName = "0.4.0"
     }
 
     buildTypes {

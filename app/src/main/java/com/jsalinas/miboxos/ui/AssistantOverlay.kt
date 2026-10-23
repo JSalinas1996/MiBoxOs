@@ -20,8 +20,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,39 +28,46 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jsalinas.miboxos.assistant.AssistantState
 import kotlin.math.cos
 import kotlin.math.sin
 
+/** Asistente como Siri en tvOS: franja oscura abajo a todo lo ancho, orbe grande y texto grande. */
 @Composable
 fun AssistantOverlay(state: AssistantState, level: Float, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        AnimatedVisibility(
-            visible = state != AssistantState.Idle,
-            enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it / 2 },
-            exit = fadeOut(tween(200)) + slideOutVertically(tween(300)) { it / 2 },
+    AnimatedVisibility(
+        visible = state != AssistantState.Idle,
+        modifier = modifier.fillMaxSize(),
+        enter = fadeIn(tween(250)),
+        exit = fadeOut(tween(250)),
+    ) {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.35f), 0.5f to Color.Black.copy(alpha = 0.55f), 0.8f to Color.Black.copy(alpha = 0.88f), 1f to Color.Black.copy(alpha = 0.95f))
+            ),
+            contentAlignment = Alignment.BottomStart,
         ) {
             Row(
-                modifier = Modifier
-                    .padding(bottom = 40.dp)
-                    .widthIn(min = 360.dp, max = 720.dp)
-                    .background(LocalColors.current.panel, RoundedCornerShape(28.dp))
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                Modifier.padding(start = 72.dp, end = 120.dp, bottom = 56.dp).animateEnterExit(
+                    enter = slideInVertically(tween(350)) { it / 3 },
+                    exit = slideOutVertically(tween(250)) { it / 3 },
+                ),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(28.dp),
             ) {
-                Orb(active = state == AssistantState.Listening || state == AssistantState.Thinking, level = level, size = 48.dp)
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Orb(active = state == AssistantState.Listening || state == AssistantState.Thinking, level = level, size = 84.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (state) {
-                        AssistantState.Listening -> BasicText("Te escucho…", style = Type.title)
-                        AssistantState.Thinking -> BasicText("Pensando…", style = Type.title)
+                        AssistantState.Listening -> BasicText("Te escucho…", style = Type.siri)
+                        AssistantState.Thinking -> BasicText("Pensando…", style = Type.siri)
                         is AssistantState.Done -> {
-                            if (state.transcript.isNotBlank()) BasicText("“${state.transcript}”", style = Type.caption)
-                            BasicText(state.reply, style = Type.body)
+                            if (state.transcript.isNotBlank()) BasicText("“${state.transcript}”", style = Type.siri)
+                            BasicText(state.reply, style = Type.siriReply)
                         }
-                        is AssistantState.Failed -> BasicText(state.message, style = Type.body)
+                        is AssistantState.Failed -> BasicText(state.message, style = Type.siriReply.copy(color = Color.White))
                         AssistantState.Idle -> Unit
                     }
                 }

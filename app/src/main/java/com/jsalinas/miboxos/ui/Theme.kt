@@ -19,10 +19,7 @@ val Inter = FontFamily(
     Font(R.font.inter_700, FontWeight.Bold),
 )
 
-/**
- * Colores por modo. `onWallpaper` es el texto que va directo sobre el fondo (título, reloj):
- * sobre fotos espaciales siempre es blanco, aunque el modo sea claro.
- */
+/** Colores por modo. `onWallpaper` es el texto sobre el material de la grilla (nombres de apps). */
 data class AppColors(
     val dark: Boolean,
     val text: Color,
@@ -34,6 +31,10 @@ data class AppColors(
     val onControlFocused: Color,
     val tile: Color,
     val accent: Color,
+    /** Fondo de Ajustes (pantalla completa, como la app Ajustes de tvOS). */
+    val settingsBackground: Color,
+    /** Tinte sobre el fondo desenfocado detrás de la grilla. */
+    val materialTint: Color,
 )
 
 fun appColors(dark: Boolean, photoWallpaper: Boolean) = if (dark) {
@@ -48,19 +49,23 @@ fun appColors(dark: Boolean, photoWallpaper: Boolean) = if (dark) {
         onControlFocused = Color(0xFF1D1D1F),
         tile = Color(0xFF2C2C2E),
         accent = Color(0xFF0A84FF),
+        settingsBackground = Color(0xFF151517),
+        materialTint = Color.Black.copy(alpha = 0.42f),
     )
 } else {
     AppColors(
         dark = false,
         text = Color(0xFF1D1D1F),
         secondary = Color(0xFF6E6E73),
-        onWallpaper = if (photoWallpaper) Color(0xFFF5F5F7) else Color(0xFF1D1D1F),
+        onWallpaper = Color(0xFF1D1D1F),
         panel = Color(0xFFF5F5F7),
         control = Color.Black.copy(alpha = 0.06f),
         controlFocused = Color.White,
         onControlFocused = Color(0xFF1D1D1F),
         tile = Color(0xFFE5E5EA),
         accent = Color(0xFF007AFF),
+        settingsBackground = Color(0xFFEBEBF0),
+        materialTint = Color.White.copy(alpha = 0.55f),
     )
 }
 
@@ -71,21 +76,22 @@ val OrbColors = listOf(Color(0xFF5E5CE6), Color(0xFFBF5AF2), Color(0xFFFF375F), 
 object Type {
     private val softShadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 2f), 12f)
 
-    val hero: TextStyle
-        @Composable get() = TextStyle(
-            fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 40.sp, letterSpacing = (-0.5).sp,
-            color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
-        )
-    val clock: TextStyle
-        @Composable get() = TextStyle(
-            fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 22.sp,
-            color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
-        )
     val tileLabel: TextStyle
         @Composable get() = TextStyle(
-            fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp,
+            fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = 0.1.sp,
             color = LocalColors.current.onWallpaper, shadow = shadowFor(LocalColors.current.onWallpaper),
         )
+    /** Título grande centrado de Ajustes. */
+    val largeTitle: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 28.sp, letterSpacing = (-0.3).sp, color = LocalColors.current.text)
+    /** Texto de las filas de Ajustes. */
+    val row: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 17.sp, color = LocalColors.current.text)
+    /** Transcripción del asistente, grande como Siri en tvOS. */
+    val siri: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.2).sp, color = Color.White)
+    val siriReply: TextStyle
+        @Composable get() = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 19.sp, color = Color.White.copy(alpha = 0.72f))
     val section: TextStyle
         @Composable get() = TextStyle(
             fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.6.sp,

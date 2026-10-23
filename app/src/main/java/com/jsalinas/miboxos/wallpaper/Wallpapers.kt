@@ -42,6 +42,17 @@ class Wallpapers(private val context: Context) {
 
     suspend fun loadFull(wallpaper: Wallpaper): ImageBitmap? = load(wallpaper, 1920, 1080, thumb = false)
 
+    /** Versión desenfocada para el material de la grilla; null para "Minimal". */
+    suspend fun loadFrosted(wallpaper: Wallpaper): ImageBitmap? = withContext(Dispatchers.IO) {
+        runCatching {
+            when (val src = wallpaper.source) {
+                null -> null
+                is Wallpaper.Asset -> context.assets.open(src.thumb).use { BitmapFactory.decodeStream(it) }
+                is Wallpaper.UserFile -> decodeSampled(src.file, 480, 270)
+            }?.let { Blur.frosted(it).asImageBitmap() }
+        }.getOrNull()
+    }
+
     suspend fun loadThumb(wallpaper: Wallpaper): ImageBitmap? = load(wallpaper, 480, 270, thumb = true)
 
     private suspend fun load(wallpaper: Wallpaper, w: Int, h: Int, thumb: Boolean): ImageBitmap? =

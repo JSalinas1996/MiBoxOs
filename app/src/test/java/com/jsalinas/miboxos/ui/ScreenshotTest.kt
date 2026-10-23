@@ -17,6 +17,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
+import com.jsalinas.miboxos.apps.SystemTiles
 import com.jsalinas.miboxos.apps.TvApp
 import com.jsalinas.miboxos.assistant.AssistantState
 import com.jsalinas.miboxos.hue.HueStatus
@@ -33,6 +38,7 @@ import java.io.File
  * Capturas para el README con apps ficticias (logos genéricos dibujados acá, no marcas reales).
  * Solo escriben archivos al grabar: ./gradlew recordRoborazziDebug
  */
+@OptIn(ExperimentalTestApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], qualifiers = "w960dp-h540dp-land-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -57,73 +63,91 @@ class ScreenshotTest {
     }
 
     private val earth by lazy { asset("tierra") }
+    private val earthFrosted by lazy {
+        com.jsalinas.miboxos.wallpaper.Blur.frosted(
+            BitmapFactory.decodeFile(File("src/main/assets/wallpapers/tierra_thumb.webp").absolutePath)!!
+        ).asImageBitmap()
+    }
 
-    @Test
-    fun homeDark() = shot("homeDark", dark = true)
+    @Test fun homeDark() = shot("homeDark", dark = true)
 
-    @Test
-    fun homeLight() = shot("homeLight", dark = false)
+    @Test fun homeLight() = shot("homeLight", dark = false)
 
-    @Test
-    fun homeEarth() = shot("homeEarth", dark = true, wallpaper = earth, photo = true)
+    @Test fun homeEarth() = shot("homeEarth", dark = true, wallpaper = true)
 
-    @Test
-    fun settingsOpen() = shot("settingsOpen", dark = true, wallpaper = earth, photo = true, settings = true)
+    /** Al bajar de la primera fila, el Top Shelf se va y todo queda sobre el material. */
+    @Test fun homeEarthScrolled() = shot("homeEarthScrolled", dark = true, wallpaper = true, pressDown = true)
 
-    @Test
-    fun settingsLight() = shot("settingsLight", dark = false, settings = true)
+    @Test fun settingsRoot() = shot("settingsRoot", dark = true, settings = SettingsPage.ROOT)
 
-    @Test
-    fun assistantDone() = shot("assistantDone", 
-        dark = true, wallpaper = earth, photo = true,
+    @Test fun settingsWallpaper() = shot("settingsWallpaper", dark = true, wallpaper = true, settings = SettingsPage.WALLPAPER)
+
+    @Test fun settingsLight() = shot("settingsLight", dark = false, settings = SettingsPage.APPEARANCE)
+
+    @Test fun settingsHue() = shot("settingsHue", dark = true, settings = SettingsPage.HUE)
+
+    @Test fun assistantDone() = shot(
+        "assistantDone", dark = true, wallpaper = true,
         state = AssistantState.Done("prendé las luces del living en cálido", "Listo, living en luz cálida."),
     )
 
     private fun shot(
         name: String,
         dark: Boolean,
-        wallpaper: ImageBitmap? = null,
-        photo: Boolean = false,
-        settings: Boolean = false,
+        wallpaper: Boolean = false,
+        settings: SettingsPage? = null,
         state: AssistantState = AssistantState.Idle,
+        pressDown: Boolean = false,
     ) {
         val wallpapers = listOf(
             Wallpaper("minimal", "Minimal", null),
             Wallpaper("tierra", "Tierra", Wallpaper.Asset("", "")),
+            Wallpaper("tierra_desde_la_luna", "Tierra desde la Luna", Wallpaper.Asset("", "")),
             Wallpaper("luna", "Luna", Wallpaper.Asset("", "")),
             Wallpaper("saturno", "Saturno", Wallpaper.Asset("", "")),
+            Wallpaper("nebulosa_carina", "Nebulosa de Carina", Wallpaper.Asset("", "")),
+            Wallpaper("aurora", "Aurora", Wallpaper.Asset("", "")),
+            Wallpaper("luces_nocturnas", "Luces nocturnas", Wallpaper.Asset("", "")),
         )
         val thumbs = wallpapers.filter { it.source != null }.associate { it.id to asset("${it.id}_thumb") }
+        val home = apps.take(3) + SystemTiles.assistant() + SystemTiles.settings() + apps.drop(3)
         compose.setContent {
-            CompositionLocalProvider(LocalColors provides appColors(dark, photo)) {
+            CompositionLocalProvider(LocalColors provides appColors(dark, wallpaper)) {
                 Box(Modifier.fillMaxSize()) {
                     HomeScreen(
-                        apps = apps,
-                        wallpaper = wallpaper,
-                        interactive = !settings,
+                        apps = home,
+                        wallpaper = if (wallpaper) earth else null,
+                        frosted = if (wallpaper) earthFrosted else null,
+                        interactive = settings == null,
                         onLaunch = {},
-                        onAssistant = {},
-                        onSettings = {},
                         firstTileFocus = remember { FocusRequester() },
                     )
-                    SettingsPanel(
-                        visible = settings,
+                    SettingsScreen(
+                        visible = settings != null,
+                        page = settings ?: SettingsPage.ROOT,
                         state = SettingsState(
                             darkMode = dark,
                             wallpapers = wallpapers,
                             thumbs = thumbs,
-                            selectedWallpaper = if (photo) "tierra" else "minimal",
+                            selectedWallpaper = if (wallpaper) "tierra" else "minimal",
                             userFolder = "Pictures/MiBoxOs",
-                            hue = HueStatus.Paired("12 luces · 4 habitaciones/zonas · 9 escenas"),
+                            hue = HueStatus.Paired("12 luces · 4 grupos · 9 escenas"),
                             assistantReady = true,
                             model = "gemini-3.8-flash",
+                            version = "0.4.0",
                         ),
-                        actions = SettingsActions({}, {}, {}, {}),
+                        actions = SettingsActions({}, {}, {}, {}, {}),
                     )
                     AssistantOverlay(state, 0f)
                 }
             }
         }
+        compose.waitForIdle()
+        if (pressDown) {
+            compose.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+            compose.mainClock.advanceTimeBy(1_000)
+        }
+        compose.mainClock.advanceTimeBy(1_200)
         compose.onRoot().captureRoboImage("../docs/preview/$name.png")
     }
 

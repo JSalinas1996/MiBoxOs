@@ -2,25 +2,27 @@
 
 Launcher con estética tipo Apple TV (tvOS) y asistente de voz con Gemini para la Xiaomi Mi Box S (Android TV 9).
 
-- **Inicio:** grilla de apps 16:9 con el logo de cada app, nombre grande de la app enfocada, reloj y orden automático por uso.
-- **Ajustes propios:** modo claro/oscuro, fondos (Minimal, Tierra, Luna, Saturno, nebulosa… de NASA, o tus fotos) y vinculación con Philips Hue.
-- **Asistente:** botón "Asistente" en pantalla (o tecla Buscar/Menú si el control la manda). Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, luces y escenas de Hue, abrir ajustes.
+- **Inicio estilo tvOS:** Top Shelf con el fondo elegido, íconos con el logo de cada app sobre un material desenfocado, brillo y sombra al enfocar, nombre solo bajo el ícono enfocado y orden por uso.
+- **Ajustes (app en la grilla):** pantalla completa como Ajustes de tvOS, con apariencia clara/oscura, fondos (Minimal, Tierra, Luna, Saturno, nebulosa… de NASA, o tus fotos) y vinculación con Philips Hue.
+- **Asistente (app en la grilla, estilo Siri):** también con la tecla Buscar/Menú si el control la manda. Escucha hasta que te callás, manda el audio a Gemini y ejecuta: abrir apps, buscar en YouTube, play/pausa/siguiente, volumen, luces y escenas de Hue, abrir ajustes.
 
 ## Vista previa
 
-Render real del código con apps ficticias (logos genéricos). En la TV, la tarjeta enfocada se agranda y muestra el nombre abajo.
+Render real del código con apps ficticias (logos genéricos). El diseño sigue a tvOS: Top Shelf arriba, íconos sobre un material desenfocado, Ajustes como app con subpáginas y asistente estilo Siri.
 
-| Oscuro · Minimal | Claro · Minimal |
+| Inicio | Inicio al bajar de fila |
 |---|---|
-| ![](docs/preview/homeDark.png) | ![](docs/preview/homeLight.png) |
-| **Fondo Tierra** | **Ajustes** |
-| ![](docs/preview/homeEarth.png) | ![](docs/preview/settingsOpen.png) |
+| ![](docs/preview/homeEarth.png) | ![](docs/preview/homeEarthScrolled.png) |
+| **Ajustes** | **Fondo** |
+| ![](docs/preview/settingsRoot.png) | ![](docs/preview/settingsWallpaper.png) |
+| **Modo claro** | **Asistente** |
+| ![](docs/preview/homeLight.png) | ![](docs/preview/assistantDone.png) |
 
 Para regenerarlas: `./gradlew recordRoborazziDebug --tests '*ScreenshotTest*'`.
 
 ## Tests
 
-`./gradlew testDebugUnitTest` corre 74 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
+`./gradlew testDebugUnitTest` corre 78 tests sobre Android 9 simulado (Robolectric), con un Hue Bridge y una API de Gemini falsos:
 
 - **Uso con el control** (`MainActivityTest`): foco inicial, D-pad, OK abre apps, Atrás no sale del launcher, Ajustes (modo, fondo, foco al abrir/cerrar), botón Home, permisos, asistente de punta a punta (botón y tecla Menú), vincular Hue y usarlo por voz.
 - **Asistente** (`AssistantControllerTest`, `ToolsTest`, `GeminiClientTest`, `VoiceRecorderTest`): sin API key, sin voz, errores de Gemini y de red, cancelación, cada acción.
@@ -63,11 +65,11 @@ La primera vez que abras Ajustes la app pide permiso para leer archivos.
 
 ## Philips Hue
 
-En Ajustes → Philips Hue → **Vincular**, y apretá el botón redondo del bridge dentro de los 30 segundos. Usa la API local del bridge (no pasa por la nube). Después podés decirle al asistente cosas como "apagá las luces", "living al 30%" o "poné la escena Relajarse". La búsqueda del bridge usa el servicio de Philips (`discovery.meethue.com`), así que el bridge tiene que tener internet.
+En el ícono Ajustes → Philips Hue → **Vincular**, y apretá el botón redondo del bridge dentro de los 30 segundos. Usa la API local del bridge (no pasa por la nube). Después podés decirle al asistente cosas como "apagá las luces", "living al 30%" o "poné la escena Relajarse". La búsqueda del bridge usa el servicio de Philips (`discovery.meethue.com`), así que el bridge tiene que tener internet.
 
 ## Probar el micrófono
 
-Abrí MiBoxOs, elegí "Asistente" y hablá. Si dice *"No te escuché (nivel máximo 0.00)"* el micrófono del control no le llega a apps de terceros. Alternativas: un micrófono USB en el puerto de la Mi Box, o controlarla desde el celular (pendiente).
+Abrí MiBoxOs, elegí el ícono "Asistente" y hablá. Si dice *"No te escuché (nivel máximo 0.00)"* el micrófono del control no le llega a apps de terceros. Alternativas: un micrófono USB en el puerto de la Mi Box, o controlarla desde el celular (pendiente).
 
 ## Hacerlo el launcher por defecto
 
